@@ -1,0 +1,7 @@
+Manifest.toml
+docs/build/
+docs/tex/*.aux
+docs/tex/*.log
+docs/tex/*.out
+docs/tex/*.pdf
+.DS_Store

@@ -1,0 +1,3 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+JosephProjectors = "459fffc9-7bfd-4b8d-a09a-85e7d0824c03"

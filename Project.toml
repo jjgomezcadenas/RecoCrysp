@@ -1,0 +1,11 @@
+name = "JosephProjectors"
+uuid = "459fffc9-7bfd-4b8d-a09a-85e7d0824c03"
+authors = ["J.J. Gomez-Cadenas <jjgomezcadenas@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+
+[compat]
+KernelAbstractions = "0.9"
+julia = "1.10"
