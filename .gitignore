@@ -5,3 +5,4 @@ docs/tex/*.log
 docs/tex/*.out
 docs/tex/*.pdf
 .DS_Store
+test/crossval/reference_lors.npz
