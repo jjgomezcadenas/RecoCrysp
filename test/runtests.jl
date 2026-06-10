@@ -89,6 +89,52 @@ end
         @test all(bimg .== 0.0f0)
     end
 
+    @testset "PET scanner geometry" begin
+        nr = 4
+        ring_pos = Float32.(2.0 .* (0:(nr - 1)))
+        ring_pos .-= 0.5f0 * maximum(ring_pos)
+        scanner = RegularPolygonPETScannerGeometry(;
+            radius = 100.0, num_sides = 8, num_lor_endpoints_per_side = 4,
+            lor_spacing = 3.0, ring_positions = ring_pos, symmetry_axis = 3,
+        )
+        nper = 8 * 4
+        @test size(scanner.all_lor_endpoints) == (3, nper * nr)
+
+        # transverse distance of every endpoint: sqrt(R^2 + pos^2) with
+        # pos in {±1.5, ±4.5} for 4 crystals spaced 3 mm about the side center
+        trans = scanner.all_lor_endpoints[[1, 2], :]
+        d = vec(sqrt.(sum(abs2, trans; dims = 1)))
+        @test all(minimum(d) .≈ sqrt(100.0f0^2 + 1.5f0^2))
+        @test all(maximum(d) .≈ sqrt(100.0f0^2 + 4.5f0^2))
+
+        # axial coordinate equals the ring position
+        for r in 1:nr
+            pts = get_lor_endpoints(scanner, fill(r, 3), [1, 2, nper])
+            @test all(pts[3, :] .== ring_pos[r])
+        end
+
+        desc = RegularPolygonPETLORDescriptor(scanner; radial_trim = 3,
+                                              sinogram_order = :PVR)
+        @test desc.num_views == nper ÷ 2
+        @test desc.num_rad == nper - 1 - 2 * 3
+        @test desc.num_planes == nr^2
+
+        xs, xe = get_lor_coordinates(desc)
+        nlors = desc.num_planes * desc.num_views * desc.num_rad
+        @test size(xs) == (3, nlors) && size(xe) == (3, nlors)
+
+        # every plane's axial coordinates are a valid ring-position pair
+        @test all(in(ring_pos), xs[3, :]) && all(in(ring_pos), xe[3, :])
+
+        # different sinogram orders contain the same LORs, just reordered
+        xs2, xe2 = get_lor_coordinates(
+            RegularPolygonPETLORDescriptor(scanner; radial_trim = 3,
+                                           sinogram_order = :RVP),
+        )
+        lorset(a, b) = sort!([(a[:, i]..., b[:, i]...) for i in axes(a, 2)])
+        @test lorset(xs, xe) == lorset(xs2, xe2)
+    end
+
     if Metal.functional()
         @testset "Metal" begin
             @test analytic_max_rel(Metal.MtlArray) < 1.0f-3

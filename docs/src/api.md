@@ -9,6 +9,15 @@ joseph3d_back
 joseph3d_back!
 ```
 
+## PET scanner geometry
+
+```@docs
+RegularPolygonPETScannerGeometry
+RegularPolygonPETLORDescriptor
+get_lor_endpoints
+get_lor_coordinates
+```
+
 ## Internals
 
 ```@docs

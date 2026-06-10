@@ -20,6 +20,10 @@ using KernelAbstractions: @atomic
 const KA = KernelAbstractions
 
 export joseph3d_fwd!, joseph3d_fwd, joseph3d_back!, joseph3d_back
+export RegularPolygonPETScannerGeometry, RegularPolygonPETLORDescriptor
+export get_lor_endpoints, get_lor_coordinates
+
+include("pet_geometry.jl")
 
 # fminf/fmaxf semantics (ignore NaN operands) — Base.min/max propagate NaN, which
 # breaks the IEEE-754 slab method when a ray is parallel to a slab (0 * Inf = NaN).
