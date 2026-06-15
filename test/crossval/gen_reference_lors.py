@@ -14,7 +14,7 @@ identical scanner.
 import sys
 from pathlib import Path
 
-# point at the local parallelproj clone (sibling of JosephProjectors)
+# point at the local parallelproj clone (sibling of RecoCrysp)
 PP_SRC = Path(__file__).resolve().parents[3] / "parallelproj" / "src"
 sys.path.insert(0, str(PP_SRC))
 

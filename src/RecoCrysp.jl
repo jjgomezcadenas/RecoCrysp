@@ -12,7 +12,7 @@
 #   - forward: proj[i] = line integral of the trilinearly interpolated image
 #   - back: exact matched adjoint, accumulated into the image with atomics
 
-module JosephProjectors
+module RecoCrysp
 
 using KernelAbstractions
 using KernelAbstractions: @atomic

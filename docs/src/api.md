@@ -21,5 +21,5 @@ get_lor_coordinates
 ## Internals
 
 ```@docs
-JosephProjectors.ray_cube_intersection_joseph
+RecoCrysp.ray_cube_intersection_joseph
 ```

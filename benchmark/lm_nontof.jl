@@ -14,7 +14,7 @@
 using Printf
 using Random
 using Statistics
-using JosephProjectors
+using RecoCrysp
 import Metal
 
 pos_args = filter(a -> !startswith(a, "--"), ARGS)

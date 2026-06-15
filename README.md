@@ -1,4 +1,4 @@
-# JosephProjectors.jl
+# RecoCrysp.jl
 
 Fast, backend-agnostic **Joseph 3D matched forward and back projectors** for
 tomographic (PET/SPECT) image reconstruction in Julia. A single
@@ -24,13 +24,13 @@ This is a Julia port of the non-TOF projectors of
 
 ```julia
 using Pkg
-Pkg.develop(path = "path/to/JosephProjectors")
+Pkg.develop(path = "path/to/RecoCrysp")
 ```
 
 ## Usage
 
 ```julia
-using JosephProjectors
+using RecoCrysp
 
 n = (128, 128, 128)                    # image dimensions
 voxsize = (2.0f0, 2.0f0, 2.0f0)        # mm

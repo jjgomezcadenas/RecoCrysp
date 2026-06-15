@@ -1,4 +1,4 @@
 [deps]
-JosephProjectors = "459fffc9-7bfd-4b8d-a09a-85e7d0824c03"
+RecoCrysp = "459fffc9-7bfd-4b8d-a09a-85e7d0824c03"
 NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"

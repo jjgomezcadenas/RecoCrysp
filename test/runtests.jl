@@ -1,7 +1,7 @@
 using Test
 using Random
 using LinearAlgebra
-using JosephProjectors
+using RecoCrysp
 
 import Metal
 
@@ -69,7 +69,7 @@ function adjointness_rel(to_dev)
     return abs(lhs - rhs) / abs(lhs)
 end
 
-@testset "JosephProjectors" begin
+@testset "RecoCrysp" begin
     @testset "CPU" begin
         @test analytic_max_rel(identity) < 1.0f-3
         @test adjointness_rel(identity) < 1.0e-3

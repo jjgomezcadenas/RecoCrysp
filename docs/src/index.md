@@ -1,4 +1,4 @@
-# JosephProjectors.jl
+# RecoCrysp.jl
 
 Backend-agnostic **Joseph 3D matched forward and back projectors** for
 tomographic (PET/SPECT) image reconstruction. A single
@@ -49,7 +49,7 @@ to machine precision — the property MLEM/OSEM convergence relies on.
 ## Quick start
 
 ```julia
-using JosephProjectors
+using RecoCrysp
 
 n = (128, 128, 128)
 voxsize = (2.0f0, 2.0f0, 2.0f0)

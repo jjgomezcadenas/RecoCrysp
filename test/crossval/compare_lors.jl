@@ -12,7 +12,7 @@
 
 using NPZ
 using Printf
-using JosephProjectors
+using RecoCrysp
 
 ref = npzread(joinpath(@__DIR__, "reference_lors.npz"))
 

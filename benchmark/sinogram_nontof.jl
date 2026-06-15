@@ -10,7 +10,7 @@
 
 using Printf
 using Statistics
-using JosephProjectors
+using RecoCrysp
 import Metal
 
 num_runs = length(ARGS) >= 1 ? parse(Int, ARGS[1]) : 5

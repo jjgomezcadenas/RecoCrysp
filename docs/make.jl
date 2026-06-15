@@ -1,9 +1,9 @@
 using Documenter
-using JosephProjectors
+using RecoCrysp
 
 makedocs(
-    sitename = "JosephProjectors.jl",
-    modules = [JosephProjectors],
+    sitename = "RecoCrysp.jl",
+    modules = [RecoCrysp],
     format = Documenter.HTML(prettyurls = false),
     remotes = nothing,  # local package without a GitHub remote (yet)
     pages = [

@@ -1,6 +1,6 @@
 # Backends and GPU usage
 
-JosephProjectors depends **only on KernelAbstractions.jl** — not on Metal.jl,
+RecoCrysp depends **only on KernelAbstractions.jl** — not on Metal.jl,
 CUDA.jl or any other GPU stack. This page explains how backend selection works
 and why the package is designed this way.
 
@@ -23,7 +23,7 @@ fwd_kernel!(backend)(proj, xstart, xend, img, ...; ndrange = nlors)
 The GPU-specific machinery lives in the GPU package, not here:
 `get_backend(::MtlArray)` is a method *Metal.jl* defines, and the lowering of
 `@atomic` to Metal atomic instructions is provided by the `AtomixMetalExt`
-extension that Metal.jl loads. JosephProjectors never references any GPU type.
+extension that Metal.jl loads. RecoCrysp never references any GPU type.
 
 ## Using a GPU
 
@@ -31,7 +31,7 @@ Load the GPU package in *your* environment and pass device arrays. Nothing
 else changes:
 
 ```julia
-using JosephProjectors, Metal
+using RecoCrysp, Metal
 
 d_img = MtlArray(img)
 d_xs = MtlArray(xstart)

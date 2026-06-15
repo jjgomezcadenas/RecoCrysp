@@ -6,7 +6,7 @@
 
 using Random
 using Printf
-using JosephProjectors
+using RecoCrysp
 using KernelAbstractions
 
 const KA = KernelAbstractions
