@@ -1,0 +1,44 @@
+% tutorial_basis.tex — DRIVER for the RecoCrysp tutorial "basis" document.
+%
+% This file only sets up the document and \input{}s the section sources from
+% tbsrc/. Each section is developed independently in its own tbsrc/*.tex file
+% so they can be written and reviewed one at a time. See ../PLAN.md for the
+% full plan, the section outline, and the technical decisions behind the text.
+%
+% Build (from this directory):  make      (runs pdflatex twice for refs/TOC)
+\documentclass[11pt,a4paper]{article}
+\usepackage{recocrysp_tutorial}
+
+\title{RecoCrysp Tutorial\,---\,I\\[2pt]
+       \large Foundations of PET Image Reconstruction}
+\author{J.~J.~G\'omez-Cadenas}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\input{tbsrc/abstract}
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\input{tbsrc/intro}
+\input{tbsrc/geometry}
+\input{tbsrc/grid}
+\input{tbsrc/projection}
+\input{tbsrc/resolution}
+\input{tbsrc/datamodel}
+\input{tbsrc/statistics}
+\input{tbsrc/mlem}
+\input{tbsrc/acceleration}
+\input{tbsrc/pipeline}
+\input{tbsrc/summary}
+
+\appendix
+\input{tbsrc/appendices}
+
+\input{tbsrc/references}
+
+\end{document}

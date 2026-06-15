@@ -1,0 +1,12 @@
+This document is the theoretical foundation of the RecoCrysp tutorial series.
+It develops, from first principles, the physics and mathematics of Positron
+Emission Tomography (PET) image reconstruction as implemented in the
+\code{RecoCrysp} Julia library: the scanner geometry and line-of-response
+model, the voxel grid, the Joseph forward/back projectors and their matched
+adjoint, the detector point-spread function, the complete physical data model
+(attenuation, normalization, scatter and randoms), the Poisson statistical
+model, and maximum-likelihood iterative reconstruction (MLEM and OSEM),
+including noise behaviour and semi-convergence. Each subsequent tutorial
+(\code{tutorial\_example1}, \dots) applies this material to a concrete, fully
+worked example. The treatment is non-time-of-flight and listmode-oriented, and
+runs identically on CPU and GPU (including Apple Metal).

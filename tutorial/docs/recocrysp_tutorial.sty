@@ -1,0 +1,68 @@
+% recocrysp_tutorial.sty — shared style/preamble for the RecoCrysp tutorial
+% document series (tutorial_basis.tex, tutorial_example1.tex, ...).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{recocrysp_tutorial}[2026/06/15 RecoCrysp tutorial style]
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,angles,quotes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+% ---- theorem-like environments ----------------------------------------
+\theoremstyle{definition}
+\newtheorem{example}{Example}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---- math macros ------------------------------------------------------
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\xv}{\bm{x}}                  % activity image (vector)
+\newcommand{\yv}{\bm{y}}                  % measured data
+\newcommand{\Aop}{\bm{A}}                 % forward projector (system matrix)
+\newcommand{\Aadj}{\bm{A}^{\mathsf{T}}}   % matched adjoint (back projector)
+\newcommand{\Gop}{\bm{G}}                 % resolution (PSF) operator
+\newcommand{\sensv}{\bm{s}_{\mathrm{sens}}} % sensitivity image
+\newcommand{\nrm}{\bm{n}}                 % normalization factors
+\newcommand{\att}{\bm{a}}                 % attenuation factors
+\newcommand{\sct}{\bm{s}}                 % scatter
+\newcommand{\rnd}{\bm{r}}                 % randoms
+\newcommand{\pred}{\bar{\bm{y}}}          % predicted (expected) counts
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\inner}[2]{\left\langle #1,\, #2\right\rangle}
+\newcommand{\FWHM}{\mathrm{FWHM}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% ---- Julia code listings ----------------------------------------------
+\definecolor{jlkw}{rgb}{0.55,0.0,0.55}
+\definecolor{jlcomment}{rgb}{0.40,0.40,0.40}
+\definecolor{jlstring}{rgb}{0.0,0.45,0.0}
+\lstdefinelanguage{Julia}{
+  morekeywords={function,end,for,while,if,else,elseif,return,using,import,
+    struct,mutable,const,in,begin,let,do,module,export},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+\lstset{
+  language=Julia,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{jlkw},
+  commentstyle=\color{jlcomment},
+  stringstyle=\color{jlstring},
+  breaklines=true,
+  showstringspaces=false,
+  frame=single,
+  framesep=4pt,
+}

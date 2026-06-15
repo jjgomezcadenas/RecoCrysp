@@ -6,3 +6,10 @@ docs/tex/*.out
 docs/tex/*.pdf
 .DS_Store
 test/crossval/reference_lors.npz
+# LaTeX build artifacts (tutorial docs)
+tutorial/docs/*.aux
+tutorial/docs/*.log
+tutorial/docs/*.out
+tutorial/docs/*.toc
+tutorial/docs/*.pdf
+tutorial/docs/tbsrc/*.aux

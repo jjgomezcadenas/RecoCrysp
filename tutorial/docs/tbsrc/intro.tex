@@ -1,0 +1,104 @@
+% tbsrc/intro.tex — Introduction (Section 1).  STATUS: written (first draft).
+\section{Introduction}
+\label{sec:intro}
+
+\subsection{Positron emission tomography in one page}
+\label{sec:intro:pet}
+
+Positron Emission Tomography (PET) images the spatial distribution of a
+radiotracer labelled with a positron-emitting isotope. An emitted positron
+travels a short distance (the \emph{positron range}) before annihilating with
+an atomic electron; the annihilation converts the pair's rest mass into two
+$511\,\mathrm{keV}$ photons emitted almost exactly back to back. A ring of
+scintillation detectors surrounds the subject and records pairs of photons that
+arrive within a narrow coincidence time window. Each such \emph{coincidence}
+is assigned to the straight line joining the two firing detector elements ---
+the \emph{line of response} (LOR). The annihilation is known to have occurred
+somewhere along that line (in non-time-of-flight PET, with no further
+localization along it).
+
+The raw output of the scanner is therefore a large set of LORs, each carrying
+the number of coincidences recorded on it. The data can be stored as a
+\emph{sinogram} (counts binned by LOR), or, event by event, as a
+\emph{listmode} stream in which every coincidence is one record giving the two
+endpoint positions. This tutorial works primarily in listmode, which is the
+natural representation for the continuous, machine-learning--positioned
+detectors that motivate \code{RecoCrysp} (Section~\ref{sec:resolution}).
+
+\subsection{The reconstruction problem}
+\label{sec:intro:problem}
+
+Let $f(\bm{u})$ be the activity concentration at world position
+$\bm{u}\in\RR^3$. The expected number of (true, unscattered) coincidences on a
+LOR is, to first approximation, the line integral of $f$ along it. Discretizing
+$f$ on a voxel grid (Section~\ref{sec:grid}) turns it into a vector
+$\xv\in\RR^{N}_{\ge 0}$, and the line-integral operation becomes a linear map
+--- the \emph{system matrix} or \emph{forward projector} $\Aop$ --- so that the
+mean data over a set of LORs is, in the idealized case,
+\begin{equation}
+  \pred \;=\; \Aop\,\xv .
+  \label{eq:intro-ideal}
+\end{equation}
+Reconstruction is the inverse problem: recover $\xv$ from the measured counts
+$\yv$. It is \emph{ill-posed} --- the data are noisy (finite counts), angularly
+and radially incompletely sampled, and blurred by the finite detector
+resolution and physical effects --- so a naive inversion of \eqref{eq:intro-ideal}
+is useless. Instead one adopts a statistical model of the data and seeks the
+image that best explains them. Because PET counts are Poisson distributed
+(Section~\ref{sec:statistics}), the method of choice is
+\emph{maximum-likelihood expectation-maximization} (MLEM) and its accelerated
+ordered-subsets variant (OSEM), developed in
+Sections~\ref{sec:mlem}--\ref{sec:acceleration}.
+
+The realistic forward model is richer than \eqref{eq:intro-ideal}. Writing the
+expected counts on LOR $i$,
+\begin{equation}
+  \pred_i \;=\; n_i\, a_i \,\bigl(\Aop\,\Gop\,\xv\bigr)_i \;+\; s_i + r_i ,
+  \label{eq:intro-full}
+\end{equation}
+collects every effect this tutorial treats: $\Gop$ is the detector
+point-spread function (Section~\ref{sec:resolution}); $n_i$ the detector
+\emph{normalization} and $a_i$ the \emph{attenuation} of the medium (both
+multiplicative, Section~\ref{sec:datamodel}); and $s_i,r_i$ the additive
+\emph{scatter} and \emph{randoms} backgrounds. Each tutorial example switches
+on a subset of these terms (Section~\ref{sec:summary}); the first example sets
+$\Gop$ to the detector resolution, $a=1$ (emission in vacuum), $n=1$, and
+$s=r=0$.
+
+\subsection{Scope, library, and notation}
+\label{sec:intro:scope}
+
+This document is the shared \emph{basis} for the tutorial series: it states the
+physics and mathematics once, so the example documents can focus on a concrete
+setup and its results. The treatment is non-time-of-flight throughout. All
+computations are carried out with \code{RecoCrysp}, a Julia library whose
+projectors are written once with \code{KernelAbstractions.jl} and run
+unchanged on multithreaded CPUs and on GPUs, including Apple Metal; all
+arithmetic is single precision (\code{Float32}). The library is endpoint-driven
+--- it knows only LORs, voxels, and the operators of
+\eqref{eq:intro-full} --- which is what makes it agnostic to the detector
+technology (Section~\ref{sec:geometry}).
+
+Notation used throughout is collected in Appendix~\ref{app:notation}; the main
+symbols are summarized in Table~\ref{tab:intro-notation}.
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{ll}
+    \toprule
+    Symbol & Meaning \\
+    \midrule
+    $\xv\in\RR^N_{\ge0}$ & activity image (voxel vector) \\
+    $\yv$               & measured counts (per LOR / per event) \\
+    $\pred$             & expected (mean) counts, Eq.~\eqref{eq:intro-full} \\
+    $\Aop,\ \Aadj$      & forward projector and its matched adjoint \\
+    $\Gop$              & detector point-spread (resolution) operator \\
+    $n_i,\ a_i$         & normalization, attenuation (multiplicative) \\
+    $s_i,\ r_i$         & scatter, randoms (additive) \\
+    $\sensv=\Aadj(\nrm\!\cdot\!\att)$ & sensitivity image \\
+    \bottomrule
+  \end{tabular}
+  \caption{Principal symbols. Per-LOR factors are written without indices when
+           viewed as vectors.}
+  \label{tab:intro-notation}
+\end{table}
