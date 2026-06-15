@@ -132,7 +132,10 @@ left unchanged.
 function em_update(m::ListmodePoissonModel, x)
     g = _gradient(m, x)
     precond = ifelse.(m.sensitivity .> 0.0f0, x ./ m.sensitivity, 0.0f0)
-    return x .- precond .* g
+    # project onto the non-negative orthant: the subtractive preconditioned-
+    # gradient form equals the multiplicative MLEM update in exact arithmetic,
+    # but Float32 cancellation can leave rounding-level negatives.
+    return max.(x .- precond .* g, 0.0f0)
 end
 
 """

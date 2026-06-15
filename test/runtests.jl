@@ -1,6 +1,7 @@
 using Test
 using Random
 using LinearAlgebra
+using Distributions
 using RecoCrysp
 
 import Metal
@@ -191,6 +192,37 @@ end
         models = subset_models(p.xs, p.xe, p.org, p.vs, p.ish, 6; counts = p.y)
         xo = osem(models, p.x0; nepochs = 15)
         @test relerr(Array(xo)[p.fov], p.x_true[p.fov]) < 0.2
+    end
+
+    @testset "reconstruction (Poisson noise, CPU)" begin
+        p = build_recon_problem(identity)
+
+        # scale the phantom to a realistic total count level, then draw Poisson
+        # counts (seeded). p.y holds the noise-free expected counts A·x_true.
+        total_counts = 1.0f6
+        scale = total_counts / sum(p.y)
+        x_true = scale .* p.x_true
+        lambda = scale .* p.y
+        rng = MersenneTwister(7)
+        counts = Float32[l > 0 ? rand(rng, Poisson(Float64(l))) : 0.0f0 for l in lambda]
+
+        model = ListmodePoissonModel(p.xs, p.xe, p.model.sensitivity;
+                                     img_origin = p.org, voxsize = p.vs, counts = counts)
+
+        # MLEM on noisy data: the data log-likelihood still improves monotonically
+        nlls = Float64[]
+        x50 = mlem(model, p.x0; niter = 50,
+                   callback = (k, xx) -> push!(nlls, neg_log_likelihood(model, xx)))
+        @test maximum(diff(nlls)) <= 1.0e-4 * abs(nlls[1])
+
+        # reconstruction stays non-negative and recovers the phantom at early stop
+        @test all(x50 .>= 0.0f0)
+        e50 = relerr(x50[p.fov], x_true[p.fov])
+        @test e50 < 0.2
+
+        # MLEM semi-convergence: many more iterations amplify noise (worse image)
+        x200 = mlem(model, p.x0; niter = 200)
+        @test relerr(x200[p.fov], x_true[p.fov]) > e50
     end
 
     if Metal.functional()
