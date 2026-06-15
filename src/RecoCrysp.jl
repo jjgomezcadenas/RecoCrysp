@@ -398,4 +398,10 @@ function joseph3d_back(xstart, xend, proj, img_shape, img_origin, voxsize)
     return joseph3d_back!(img, xstart, xend, proj, img_origin, voxsize)
 end
 
+# reconstruction building blocks (depends on the projectors defined above)
+include("reconstruction.jl")
+using .Reconstruction
+export sensitivity_image, ListmodePoissonModel, predicted, neg_log_likelihood,
+       em_update, mlem, osem, subset_models
+
 end # module

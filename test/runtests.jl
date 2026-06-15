@@ -17,6 +17,43 @@ end
 # voxel-(0,0,0) center such that the image box is centered at the world origin
 centered_origin(n, vs) = @. -(n - 1) * vs / 2
 
+relerr(a, b) = sqrt(sum(abs2, a .- b)) / sqrt(sum(abs2, b))
+
+# Build a noise-free listmode reconstruction problem on backend `to_dev`:
+# a full-ring scanner, all geometric LORs as the event list, counts = the exact
+# forward projection of a two-level box phantom. Returns device arrays for the
+# model plus host copies of the phantom and FOV mask for comparison.
+function build_recon_problem(to_dev)
+    nrings = 7
+    ringpos = Float32.(4 .* (0:(nrings - 1)))
+    ringpos .-= 0.5f0 * maximum(ringpos)
+    scanner = RegularPolygonPETScannerGeometry(;
+        radius = 100.0, num_sides = 48, num_lor_endpoints_per_side = 1,
+        lor_spacing = 4.0, ring_positions = ringpos, symmetry_axis = 3,
+    )
+    desc = RegularPolygonPETLORDescriptor(scanner; radial_trim = 4, sinogram_order = :RVP)
+    xs_h, xe_h = get_lor_coordinates(desc)
+
+    ish = (41, 41, nrings)
+    vs = (4.0f0, 4.0f0, 4.0f0)
+    org = ntuple(i -> -(ish[i] - 1) / 2 * vs[i], 3)
+
+    x_true = zeros(Float32, ish)
+    x_true[14:28, 14:28, 2:6] .= 1.0f0
+    x_true[19:23, 19:23, 3:5] .= 2.0f0
+
+    xs = to_dev(xs_h)
+    xe = to_dev(xe_h)
+    xt = to_dev(x_true)
+    y = joseph3d_fwd(xs, xe, xt, org, vs)             # noise-free expected counts
+    sens = sensitivity_image(xs, xe, ish, org, vs)
+    model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs, counts = y)
+
+    fov = Array(sens) .> 0
+    x0 = to_dev(Float32.(fov))                        # uniform inside the FOV
+    return (; model, x_true, fov, x0, xt, org, vs, ish, xs, xe, y)
+end
+
 """
 Maximum relative error of axis-aligned rays through a uniform unit image,
 whose exact line integral is `n * voxsize`.
@@ -135,6 +172,27 @@ end
         @test lorset(xs, xe) == lorset(xs2, xe2)
     end
 
+    @testset "reconstruction (noise-free, CPU)" begin
+        p = build_recon_problem(identity)
+
+        # the true image is an exact MLEM fixed point (contamination = 0)
+        x1 = em_update(p.model, p.xt)
+        @test relerr(Array(x1)[p.fov], p.x_true[p.fov]) < 1.0f-3
+
+        # MLEM: monotone likelihood + convergence toward the phantom
+        nlls = Float64[]
+        x = mlem(p.model, p.x0; niter = 100,
+                 callback = (k, xx) -> push!(nlls, neg_log_likelihood(p.model, xx)))
+        @test maximum(diff(nlls)) <= 1.0e-4 * abs(nlls[1])   # non-increasing (tol)
+        @test nlls[end] < nlls[1]
+        @test relerr(Array(x)[p.fov], p.x_true[p.fov]) < 0.2
+
+        # OSEM with 6 subsets reaches comparable quality in fewer epochs
+        models = subset_models(p.xs, p.xe, p.org, p.vs, p.ish, 6; counts = p.y)
+        xo = osem(models, p.x0; nepochs = 15)
+        @test relerr(Array(xo)[p.fov], p.x_true[p.fov]) < 0.2
+    end
+
     if Metal.functional()
         @testset "Metal" begin
             @test analytic_max_rel(Metal.MtlArray) < 1.0f-3
@@ -160,6 +218,14 @@ end
 
             @test maximum(abs.(p_cpu .- p_gpu)) / maximum(abs.(p_cpu)) < 1.0f-4
             @test maximum(abs.(b_cpu .- b_gpu)) / maximum(abs.(b_cpu)) < 1.0f-3
+        end
+
+        @testset "reconstruction CPU vs Metal" begin
+            pc = build_recon_problem(identity)
+            pm = build_recon_problem(Metal.MtlArray)
+            xc = mlem(pc.model, pc.x0; niter = 40)
+            xm = mlem(pm.model, pm.x0; niter = 40)
+            @test relerr(Array(xm)[pc.fov], Array(xc)[pc.fov]) < 1.0f-3
         end
     else
         @info "Metal not functional on this machine — GPU testsets skipped"
