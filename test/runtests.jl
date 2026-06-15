@@ -225,6 +225,40 @@ end
         @test relerr(x200[p.fov], x_true[p.fov]) > e50
     end
 
+    @testset "normalization (sens = Aᵀ·norm)" begin
+        p = build_recon_problem(identity)
+
+        # per-LOR multiplicative factors n (e.g. crystal-efficiency pattern)
+        rng = MersenneTwister(11)
+        n = 0.4f0 .+ 0.6f0 .* rand(rng, Float32, size(p.xs, 2))
+        counts = n .* p.y                       # normalized noise-free data, s = 0
+        sens = sensitivity_image(p.xs, p.xe, p.ish, p.org, p.vs; weights = n)
+        model = ListmodePoissonModel(p.xs, p.xe, sens;
+                                     img_origin = p.org, voxsize = p.vs,
+                                     counts = counts, mult = n)
+
+        # x_true is still an exact MLEM fixed point of the normalized model
+        @test relerr(em_update(model, p.xt)[p.fov], p.x_true[p.fov]) < 1.0f-3
+
+        # and MLEM with correct normalization recovers the phantom
+        x = mlem(model, p.x0; niter = 60)
+        e_correct = relerr(x[p.fov], p.x_true[p.fov])
+        @test e_correct < 0.2
+
+        # OSEM with normalization (subset sensitivities use Aᵀ(n_subset))
+        models = subset_models(p.xs, p.xe, p.org, p.vs, p.ish, 6; counts = counts, mult = n)
+        xo = osem(models, p.x0; nepochs = 12)
+        @test relerr(xo[p.fov], p.x_true[p.fov]) < 0.2
+
+        # ignoring normalization on normalized data biases the reconstruction
+        wrong = ListmodePoissonModel(
+            p.xs, p.xe, sensitivity_image(p.xs, p.xe, p.ish, p.org, p.vs);
+            img_origin = p.org, voxsize = p.vs, counts = counts,  # mult = 1
+        )
+        xw = mlem(wrong, p.x0; niter = 60)
+        @test relerr(xw[p.fov], p.x_true[p.fov]) > e_correct
+    end
+
     if Metal.functional()
         @testset "Metal" begin
             @test analytic_max_rel(Metal.MtlArray) < 1.0f-3

@@ -3,25 +3,31 @@
 # helper from its examples.
 #
 # The forward model is A_LM (project the image along each LOR/event), supplied
-# by the RecoCrysp Joseph projectors. The objective is the negative Poisson
-# log-likelihood in image space,
+# by the RecoCrysp Joseph projectors, with a per-LOR multiplicative correction
+# factor n (detector normalization × geometric × attenuation) and additive
+# background s:
 #
-#     f(x) = <sens, x> - sum_e counts_e * log( (A_LM x)_e + s_e )
+#     pred_e = n_e · (A_LM x)_e + s_e .
 #
-# with gradient   grad f(x) = sens - A_LM^T( counts / (A_LM x + s) )
+# The objective is the negative Poisson log-likelihood in image space,
+#
+#     f(x) = <sens, x> - sum_e counts_e * log(pred_e) ,
+#
+# with gradient   grad f(x) = sens - A_LM^T( n · counts / pred )
 # and the MLEM step written as a preconditioned gradient descent
 #
 #     x_{k+1} = x_k - (x_k / sens) ⊙ grad f(x_k)
-#             = (x_k / sens) ⊙ A_LM^T( counts / (A_LM x_k + s) ).
+#             = (x_k / sens) ⊙ A_LM^T( n · counts / pred ).
 #
-# `sens` is the sensitivity image A_full^T(norm) — backprojection of the
-# (optionally normalization-weighted) all-ones vector over ALL geometric LORs,
-# NOT just the detected events. It is decoupled from the event list, exactly as
-# in parallelproj, so the data term only projects over events.
+# `sens` is the sensitivity image A_full^T(n) — backprojection of the per-LOR
+# normalization factors (all-ones when no normalization) over ALL geometric
+# LORs, NOT just the detected events. It is decoupled from the event list,
+# exactly as in parallelproj, so the data term only projects over events.
 #
 # `counts` is per-LOR: 1 per event for raw listmode, an integer multiplicity for
-# compressed listmode, or expected counts (A x_true) for a deterministic
-# noise-free test. All arithmetic is Float32; arrays must share one backend.
+# compressed listmode, or expected counts (n·A x_true) for a deterministic
+# noise-free test. `mult` is the per-LOR factor n (default all-ones). All
+# arithmetic is Float32; arrays must share one backend.
 
 module Reconstruction
 
@@ -51,20 +57,23 @@ end
 
 """
     ListmodePoissonModel(xstart, xend, sensitivity; img_origin, voxsize,
-                         counts = nothing, contamination = nothing)
+                         counts = nothing, contamination = nothing, mult = nothing)
 
 Negative Poisson log-likelihood model for a list of LORs/events with endpoints
 in the columns of `xstart`/`xend` (`(3, nlor)`). `sensitivity` is the
-precomputed sensitivity image (see [`sensitivity_image`](@ref)). `counts`
-defaults to all ones (raw listmode); `contamination` (additive background `s`,
-must keep predicted counts positive) defaults to zeros. All arrays must live on
-the same backend as `sensitivity`.
+precomputed sensitivity image `Aᵀ(n)` (see [`sensitivity_image`](@ref); pass
+`weights = n` there). `counts` defaults to all ones (raw listmode);
+`contamination` (additive background `s`, must keep predicted counts positive)
+defaults to zeros; `mult` is the per-LOR multiplicative normalization factor `n`
+(detector efficiency × geometric × attenuation), defaulting to all ones. All
+arrays must live on the same backend as `sensitivity`.
 """
 struct ListmodePoissonModel{V,C,S}
     xstart::V
     xend::V
     counts::C
     contamination::C
+    mult::C
     sensitivity::S
     img_origin::NTuple{3,Float32}
     voxsize::NTuple{3,Float32}
@@ -73,7 +82,7 @@ end
 
 function ListmodePoissonModel(
     xstart, xend, sensitivity;
-    img_origin, voxsize, counts = nothing, contamination = nothing,
+    img_origin, voxsize, counts = nothing, contamination = nothing, mult = nothing,
 )
     nlor = size(xstart, 2)
     if counts === nothing
@@ -84,8 +93,12 @@ function ListmodePoissonModel(
         contamination = similar(xstart, Float32, nlor)
         fill!(contamination, 0.0f0)
     end
+    if mult === nothing
+        mult = similar(xstart, Float32, nlor)
+        fill!(mult, 1.0f0)
+    end
     return ListmodePoissonModel(
-        xstart, xend, counts, contamination, sensitivity,
+        xstart, xend, counts, contamination, mult, sensitivity,
         NTuple{3,Float32}(img_origin), NTuple{3,Float32}(voxsize), size(sensitivity),
     )
 end
@@ -93,16 +106,16 @@ end
 """
     predicted(model, x)
 
-Per-LOR predicted counts `A_LM x + s`.
+Per-LOR predicted counts `n · (A_LM x) + s`.
 """
 predicted(m::ListmodePoissonModel, x) =
-    joseph3d_fwd(m.xstart, m.xend, x, m.img_origin, m.voxsize) .+ m.contamination
+    m.mult .* joseph3d_fwd(m.xstart, m.xend, x, m.img_origin, m.voxsize) .+ m.contamination
 
 # gradient of the negative Poisson log-likelihood w.r.t. the image (internal)
 function _gradient(m::ListmodePoissonModel, x)
     pred = predicted(m, x)
-    # counts/pred, with the convention 0/0 = 0 for unmeasured LORs
-    ratio = ifelse.(m.counts .> 0.0f0, m.counts ./ pred, 0.0f0)
+    # n·counts/pred, with the convention 0/0 = 0 for unmeasured LORs
+    ratio = ifelse.(m.counts .> 0.0f0, m.mult .* m.counts ./ pred, 0.0f0)
     bp = joseph3d_back(m.xstart, m.xend, ratio, m.img_shape, m.img_origin, m.voxsize)
     return m.sensitivity .- bp
 end
@@ -175,15 +188,17 @@ function osem(
 end
 
 """
-    subset_models(xstart, xend, img_origin, voxsize, img_shape, nsub; counts = nothing)
+    subset_models(xstart, xend, img_origin, voxsize, img_shape, nsub;
+                  counts = nothing, mult = nothing)
 
 Split a LOR list into `nsub` interleaved subsets (subset `k` = every `nsub`-th
 LOR starting at `k`) and build a [`ListmodePoissonModel`](@ref) for each, with
-its own exact subset sensitivity `A_subᵀ𝟙`. Returns the vector of models for
-[`osem`](@ref).
+its own exact subset sensitivity `A_subᵀ(n_sub)`. Returns the vector of models
+for [`osem`](@ref).
 """
 function subset_models(
-    xstart, xend, img_origin, voxsize, img_shape, nsub::Integer; counts = nothing,
+    xstart, xend, img_origin, voxsize, img_shape, nsub::Integer;
+    counts = nothing, mult = nothing,
 )
     models = ListmodePoissonModel[]
     nlor = size(xstart, 2)
@@ -192,9 +207,11 @@ function subset_models(
         sxs = xstart[:, idx]
         sxe = xend[:, idx]
         sc = counts === nothing ? nothing : counts[idx]
-        ssens = sensitivity_image(sxs, sxe, img_shape, img_origin, voxsize)
+        sm = mult === nothing ? nothing : mult[idx]
+        ssens = sensitivity_image(sxs, sxe, img_shape, img_origin, voxsize; weights = sm)
         push!(models, ListmodePoissonModel(
-            sxs, sxe, ssens; img_origin = img_origin, voxsize = voxsize, counts = sc,
+            sxs, sxe, ssens;
+            img_origin = img_origin, voxsize = voxsize, counts = sc, mult = sm,
         ))
     end
     return models
