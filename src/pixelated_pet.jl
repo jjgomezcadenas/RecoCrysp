@@ -1,6 +1,8 @@
-# PET scanner geometry and sinogram LOR descriptor, ported from parallelproj's
-# pet_scanners.py (RegularPolygonPETScannerGeometry) and pet_lors.py
-# (RegularPolygonPETLORDescriptor with span = 1, END_FIRST zig-zag ordering).
+# Geometry for PIXELATED (discrete-crystal) PET: a regular-polygon ring scanner
+# and its sinogram LOR descriptor. Ported from parallelproj's pet_scanners.py
+# (RegularPolygonPETScannerGeometry) and pet_lors.py (RegularPolygonPETLORDescriptor
+# with span = 1, END_FIRST zig-zag ordering). The continuous-cylinder model for
+# monolithic detectors lives in monolithic_pet.jl.
 #
 # Conventions: Julia is 1-based — `symmetry_axis` is 1, 2 or 3, ring and
 # in-ring crystal indices start at 1. The geometry is built on the host;

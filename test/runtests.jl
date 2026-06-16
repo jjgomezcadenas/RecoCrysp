@@ -173,6 +173,39 @@ end
         @test lorset(xs, xe) == lorset(xs2, xe2)
     end
 
+    @testset "continuous PET geometry" begin
+        sc = ContinuousPET(diameter = 774, afov = 1024)     # CRYSP dimensions
+        @test sc.radius == 387.0f0
+        @test sc.afov == 1024.0f0
+        @test ContinuousPET(radius = 387, afov = 1024).radius == sc.radius
+        @test_throws ArgumentError ContinuousPET(diameter = 774, radius = 387, afov = 1024)
+        @test_throws ArgumentError ContinuousPET(afov = 1024)
+
+        nlors = 100_000
+        xs, xe = sample_lors(sc, nlors; rng = MersenneTwister(1))
+        @test size(xs) == (3, nlors) && size(xe) == (3, nlors)
+
+        # every endpoint lies on the cylinder surface (transverse radius == R)
+        rad(m) = sqrt.(m[1, :] .^ 2 .+ m[2, :] .^ 2)
+        @test all(isapprox.(rad(xs), sc.radius; rtol = 1.0f-4))
+        @test all(isapprox.(rad(xe), sc.radius; rtol = 1.0f-4))
+
+        # axial coordinate stays within the AFOV
+        @test maximum(abs.(xs[3, :])) <= sc.afov / 2
+        @test maximum(abs.(xe[3, :])) <= sc.afov / 2
+
+        # seeded sampling is reproducible
+        xs2, _ = sample_lors(sc, nlors; rng = MersenneTwister(1))
+        @test xs == xs2
+
+        # the sampled LORs drive the forward projector and cross the FOV
+        n = (32, 32, 32)
+        vs = (4.0f0, 4.0f0, 4.0f0)
+        org = centered_origin(n, vs)
+        proj = joseph3d_fwd(xs, xe, ones(Float32, n), org, vs)
+        @test length(proj) == nlors && any(proj .> 0.0f0)
+    end
+
     @testset "reconstruction (noise-free, CPU)" begin
         p = build_recon_problem(identity)
 
