@@ -73,8 +73,6 @@ on every available backend. Measured with `benchmark/throughput.jl`
 ## Documentation
 
 - HTML docs: `docs/` (build with `julia --project=docs docs/make.jl`)
-- Technical note (algorithm derivation, port design, validation):
-  `docs/tex/joseph3d_note.tex`
 
 ## License
 

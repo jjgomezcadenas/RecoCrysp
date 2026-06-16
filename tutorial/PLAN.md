@@ -57,8 +57,10 @@ tutorial/
 4. `projection.tex` — line integral ∫f dℓ; Joseph's method (principal axis,
    plane stepping, bilinear interp, cf=Δ/cosθ); system matrix A; back-projection
    & **matched adjoint** Aᵀ (atomic scatter; why matched matters); Float32;
-   validation (adjointness ~1e-10, analytic line integrals). Cross-ref the
-   existing RecoCrysp/docs/tex/joseph3d_note.tex for port depth.
+   validation (adjointness ~1e-10, analytic line integrals). **[WRITTEN — first
+   draft]** physics migrated from the retired `docs/tex/joseph3d_note.tex`
+   (port/Metal/implementation depth now lives in the Documenter pages, not the
+   tutorial).
 5. `resolution.tex` — blur sources (positioning, DOI, positron range,
    non-collinearity); pixelated crystals: σ=l/√12 per endpoint, ≈ l/2 FWHM at
    FOV centre, **library derives none of it**; monolithic+SiPM+ML (DNN) → 2.5 mm
@@ -166,7 +168,8 @@ tutorial/
 - [x] Scaffold: sty, driver, Makefile, tbsrc stubs, references, PLAN.md
 - [x] §1 intro.tex (first draft)
 - [ ] §2 geometry, §3 grid  (stage 1 remainder)
-- [ ] §4 projection, §5 resolution, §6 datamodel (stage 2) + figures
+- [x] §4 projection.tex (first draft; physics from the retired joseph3d_note)
+- [ ] §5 resolution, §6 datamodel (stage 2) + figures
 - [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
 - [ ] tutorial_example1.tex (after basis)

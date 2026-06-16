@@ -26,7 +26,8 @@ PET/SPECT, a Julia port of the non-TOF kernels of libparallelproj
   that produce the `(3, nlors)` endpoint matrices A consumes.
 - `reconstruction.jl` — listmode Poisson MLEM/OSEM built on the projectors.
 
-The technical note `docs/tex/joseph3d_note.tex` gives the formal derivation.
+See the package documentation (`docs/`) for the projection algorithm and
+backend details.
 """
 module RecoCrysp
 

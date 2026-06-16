@@ -2,7 +2,7 @@
 # (forward) and its exact matched adjoint Aᵀ (back), as a single
 # KernelAbstractions kernel source running on CPU threads, Apple Metal, CUDA, ...
 # All arithmetic is Float32 (Metal has no Float64). Ported from libparallelproj
-# (KUL-recon-lab, Apache-2.0); see docs/tex/joseph3d_note.tex for the formal note.
+# (KUL-recon-lab, Apache-2.0).
 #
 # Joseph's method evaluates pᵢ = ∫ f̃ dℓ along LOR i (with
 # f̃ the trilinear interpolation of the voxel image) by:
