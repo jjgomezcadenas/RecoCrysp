@@ -79,7 +79,20 @@ while the geometric spacing between samples along the ray is folded into the
 single \emph{path-length correction factor} $c$: the planes are a distance
 $\Delta_d$ apart along $d$, but the ray segment between them is longer by
 $1/\abs{\cos\theta_d}$, and $c$ converts the plane-by-plane sum back into a
-length-weighted integral.
+length-weighted integral. Figure~\ref{fig:joseph} shows the construction.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/joseph_principle.png}
+  \caption{Joseph's method (2D schematic). The ray's principal axis is
+    horizontal; the method steps over the voxel planes perpendicular to it
+    (dashed) and, at each crossing (dots), interpolates the image between the
+    bracketing voxels with weights $w_\pm$ that sum to one (shaded column). The
+    plane sum is then scaled by the correction factor $\Delta/\cos\theta$, the
+    ratio of the ray segment between planes to their spacing $\Delta$. In 3D the
+    in-plane interpolation is bilinear, over the four surrounding voxels.}
+  \label{fig:joseph}
+\end{figure}
 
 Two properties make this cheap. The crossing points $\bm{u}_j$ advance by a
 \emph{constant} increment from plane to plane, so the inner loop reduces to two

@@ -49,11 +49,14 @@ tutorial/
    `ȳ_i = n_i a_i (A G x)_i + s_i + r_i`; scope (non-TOF, listmode, RecoCrysp,
    Float32, CPU/Metal); notation table. **[WRITTEN — first draft]**
 2. `geometry.tex` — endpoint-driven model (resolution decoupled from crystal
-   size); uniform cylindrical ring (regular-polygon: radius, rings, axial);
-   world frames/mm; listmode vs sinogram, the (x1,y1,z1,x2,y2,z2) event format.
+   size); both detector models: pixelated (RegularPolygonPETScannerGeometry) and
+   continuous/monolithic (ContinuousPET, sample_lors, CRYSP 774/1024 mm, 3.5 mm);
+   world frames/mm (axial = z); listmode vs sinogram, the (x1,y1,z1,x2,y2,z2)
+   event format. **[WRITTEN — first draft]**
 3. `grid.tex` — voxel grid; voxsize two roles (world↔voxel mapping; path-length
    correction factor Δ/cosθ); **voxel size ≠ resolution** (⅓–½·FWHM rule);
-   anisotropy; FOV; units/frame consistency gotcha.
+   anisotropy; FOV; units/frame consistency gotcha; 1-based vs C 0-based index
+   remark. **[WRITTEN — first draft]**
 4. `projection.tex` — line integral ∫f dℓ; Joseph's method (principal axis,
    plane stepping, bilinear interp, cf=Δ/cosθ); system matrix A; back-projection
    & **matched adjoint** Aᵀ (atomic scatter; why matched matters); Float32;
@@ -167,7 +170,8 @@ tutorial/
 
 - [x] Scaffold: sty, driver, Makefile, tbsrc stubs, references, PLAN.md
 - [x] §1 intro.tex (first draft)
-- [ ] §2 geometry, §3 grid  (stage 1 remainder)
+- [x] §2 geometry.tex (first draft; both detector models)
+- [x] §3 grid.tex (first draft) — stage 1 complete
 - [x] §4 projection.tex (first draft; physics from the retired joseph3d_note)
 - [ ] §5 resolution, §6 datamodel (stage 2) + figures
 - [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)

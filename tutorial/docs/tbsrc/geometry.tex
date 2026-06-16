@@ -1,5 +1,139 @@
 % tbsrc/geometry.tex — Scanner Geometry and the Line of Response
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). Covers both detector models (pixelated and
+% continuous/monolithic) and the listmode vs sinogram data forms.
 \section{Scanner Geometry and the Line of Response}
 \label{sec:geometry}
-\textit{(Section to be written.)}
+
+Everything the reconstruction needs to know about the scanner reduces to one
+thing: the set of lines of response and, for each, how many coincidences it
+recorded. This section fixes how a LOR is represented, how two very different
+detector technologies --- pixelated crystal rings and monolithic blocks ---
+both produce that representation, and how the resulting data are stored.
+
+\subsection{The endpoint model}
+\label{sec:geometry:endpoint}
+
+A line of response is defined entirely by its two ends. We write them as
+world-space points $\bm{x}_s,\bm{x}_e\in\RR^3$, in millimetres, in a fixed
+right-handed frame whose $z$ axis is the scanner (axial) axis and whose
+$(x,y)$ plane is transverse. A scanner that records $M$ coincidences therefore
+hands the reconstruction two $3\times M$ matrices of endpoints, and nothing
+else about the detector enters the projector
+(Section~\ref{sec:projection}):
+\begin{equation}
+  \texttt{xstart} = \bigl[\bm{x}_s^{(1)}\;\cdots\;\bm{x}_s^{(M)}\bigr],
+  \qquad
+  \texttt{xend} = \bigl[\bm{x}_e^{(1)}\;\cdots\;\bm{x}_e^{(M)}\bigr].
+  \label{eq:geom-endpoints}
+\end{equation}
+
+This \emph{endpoint-driven} design is the central modelling choice of
+\code{RecoCrysp}. The projector integrates a thin line between whatever two
+points it is given (Section~\ref{sec:projection:joseph}); it has no notion of
+crystals, blocks, or detector pitch. Two consequences follow. First, the
+\emph{geometry} of the scanner --- where coincidences can occur --- and its
+\emph{resolution} --- how precisely each is localized --- are completely
+separate concerns: resolution is modelled on its own
+(Section~\ref{sec:resolution}), never baked into $\Aop$. Second, any detector
+technology is supported as soon as it can deliver endpoint pairs. The next two
+subsections are exactly that: two ways to populate
+\eqref{eq:geom-endpoints}.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[scale=1.1]
+    \draw[thick] (0,0) circle (2.4);
+    \draw[dashed,gray] (0,0) circle (1.25);
+    \node[gray] at (0,-0.78) {\small FOV};
+    \coordinate (s) at (128:2.4);
+    \coordinate (e) at (-37:2.4);
+    \draw[blue,very thick] (s) -- (e);
+    \fill (s) circle (1.6pt) node[above left] {$\bm{x}_s$};
+    \fill (e) circle (1.6pt) node[above right] {$\bm{x}_e$};
+    \fill (0,0) circle (1pt);
+    \draw[->,gray] (0,0) -- (0.8,0) node[below right] {\small $x$};
+    \draw[->,gray] (0,0) -- (0,0.8) node[above left] {\small $y$};
+  \end{tikzpicture}
+  \caption{Transverse section of a cylindrical scanner. A coincidence defines a
+    line of response between two detector points $\bm{x}_s,\bm{x}_e$; the
+    annihilation lies somewhere along it (non-TOF). The dashed circle is the
+    transverse field of view (Section~\ref{sec:grid}).}
+  \label{fig:geom-lor}
+\end{figure}
+
+\subsection{Pixelated (discrete-crystal) detectors}
+\label{sec:geometry:pixelated}
+
+The conventional PET detector is a ring, or stack of rings, of small
+scintillator crystals. Each crystal has a fixed centre, and a coincidence
+between crystals $a$ and $b$ is assigned the LOR joining their two centres.
+The endpoints are therefore drawn from a \emph{discrete, finite} set, and the
+transverse spacing of the LORs is quantized by the crystal pitch; the
+achievable resolution is correspondingly limited to roughly half a crystal
+width (Section~\ref{sec:resolution}).
+
+\code{RecoCrysp} builds such a scanner as a regular polygon of crystals,
+following \code{parallelproj}~\cite{schramm2024}:
+\begin{lstlisting}
+scanner = RegularPolygonPETScannerGeometry(;
+    radius = 100.0, num_sides = 48, num_lor_endpoints_per_side = 1,
+    lor_spacing = 4.0, ring_positions = -12.0:4.0:12.0, symmetry_axis = 3)
+\end{lstlisting}
+The crystal world coordinates are precomputed; a \emph{LOR descriptor} then
+enumerates the detector pairs and lays them out in sinogram order
+(Section~\ref{sec:geometry:data}), yielding the endpoint matrices
+\eqref{eq:geom-endpoints}.
+
+\subsection{Monolithic (continuous) detectors}
+\label{sec:geometry:continuous}
+
+A monolithic detector replaces the crystal array with a large, undivided
+scintillator block (in CRYSP~\cite{crysp2026}, $50\times50\,\mathrm{mm}^2$
+faces, a few radiation lengths deep). There are no crystals to read out; instead
+a neural network estimates the three-dimensional interaction position
+$(x,y,z)$ from the scintillation-light pattern. The decisive consequence is
+that the LOR endpoint can fall \emph{anywhere} on the detector surface, not on a
+discrete grid, and that the spatial resolution is set by the
+detector-plus-network --- about $3.5\,\mathrm{mm}$ FWHM for CRYSP --- and is
+\emph{decoupled from the $50\,\mathrm{mm}$ block size}.
+
+The faithful model is therefore a \emph{continuous} cylindrical surface, not a
+ring of points:
+\begin{lstlisting}
+scanner = ContinuousPET(diameter = 774.0, afov = 1024.0)  # CRYSP, mm
+xstart, xend = sample_lors(scanner, n_events; rng = rng)
+\end{lstlisting}
+\code{sample\_lors} draws LOR endpoints continuously over the cylinder
+(here the CRYSP bore diameter $77.4\,\mathrm{cm}$ and axial field of view
+$102.4\,\mathrm{cm}$). The finite detector resolution is then applied as a
+separate, detector-level step (Section~\ref{sec:resolution}); it is not part of
+the geometry.
+
+\begin{remark}
+It is tempting to model a monolithic scanner by snapping endpoints to the
+centres of its blocks, treating each block as a giant ``crystal''. This is
+wrong: it would cap the resolution at half a block ($\sim25\,\mathrm{mm}$) and
+discard exactly the continuous positioning that the detector provides. The
+block size is a packaging detail; the resolution that matters
+($3.5\,\mathrm{mm}$) is a property of the position estimate, and is injected
+separately. Sampling endpoints continuously and modelling resolution on its own
+is what keeps the two decoupled.
+\end{remark}
+
+\subsection{Listmode and sinogram data}
+\label{sec:geometry:data}
+
+Whatever the detector, the recorded coincidences can be stored in two ways. In
+\emph{listmode}, every event is one record carrying its two endpoints,
+$(x_1,y_1,z_1,x_2,y_2,z_2)$; the data are just the columns of
+\eqref{eq:geom-endpoints}, optionally with a per-event weight. In a
+\emph{sinogram}, the discrete LORs are binned and one stores the count on each
+bin, indexed by radial offset, view (angle), and axial plane. The pixelated
+descriptor produces its LORs already in a chosen sinogram order.
+
+Listmode is the natural form for a continuous detector --- there is no discrete
+bin to assign a continuously-positioned event to --- and it is the
+representation this tutorial uses throughout. Either way, reconstruction sees
+the same two ingredients: a list of LORs (the endpoints) and a per-LOR count
+(Section~\ref{sec:statistics}). With the geometry fixed, the next section places
+the image on a voxel grid in the same world frame.
