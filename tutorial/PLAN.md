@@ -64,13 +64,15 @@ tutorial/
    draft]** physics migrated from the retired `docs/tex/joseph3d_note.tex`
    (port/Metal/implementation depth now lives in the Documenter pages, not the
    tutorial).
-5. `resolution.tex` — blur sources (positioning, DOI, positron range,
-   non-collinearity); pixelated crystals: σ=l/√12 per endpoint, ≈ l/2 FWHM at
-   FOV centre, **library derives none of it**; monolithic+SiPM+ML (DNN) → 2.5 mm
-   isotropic, decoupled from 50 mm crystal; PSF operator G (image-space isotropic
-   Gaussian, self-adjoint), A_psf = A·G; two injection routes (endpoint sampling
-   vs operator); resolution recovery. NOTE: G operator is NOT yet in the library
-   — to be added (see §6 open items).
+5. `resolution.tex` — blur sources (positron range, non-collinearity,
+   positioning, DOI); pixelated crystals: σ=l/√12 per endpoint, ≈ l/2 FWHM at
+   FOV centre, **library derives none of it**; monolithic+SiPM+ML (DNN) → 3.5 mm
+   (CRYSP), decoupled from 50 mm block; PSF operator G (image-space isotropic
+   Gaussian, self-adjoint, σ=FWHM/2.355), A_psf = A·G. Resolution injected at
+   SIMULATION time: ȳ = A·(G·x_true); reconstruction uses plain A and converges
+   to G·x_true (resolution-limited). MC/endpoint-smear route is equivalent (no G
+   at all); putting G in the recon = resolution recovery, OUT OF SCOPE.
+   **[WRITTEN — first draft]**
 6. `datamodel.tex` — full model ȳ = n·a·(A G x) + s + r. Attenuation a=exp(−∫μ dℓ),
    μ-map, multiplicative, **computed by projecting the μ-map** (a=exp(−A·μ));
    μ_water≈0.0096 mm⁻¹ @511keV; non-TOF ⇒ single factor per LOR. Normalization n
@@ -173,7 +175,8 @@ tutorial/
 - [x] §2 geometry.tex (first draft; both detector models)
 - [x] §3 grid.tex (first draft) — stage 1 complete
 - [x] §4 projection.tex (first draft; physics from the retired joseph3d_note)
-- [ ] §5 resolution, §6 datamodel (stage 2) + figures
+- [x] §5 resolution.tex (first draft; simulation-time Gaussian smear, no recon-side G)
+- [ ] §6 datamodel (stage 2)
 - [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
 - [ ] tutorial_example1.tex (after basis)

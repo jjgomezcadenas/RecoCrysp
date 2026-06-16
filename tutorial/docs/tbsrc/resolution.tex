@@ -1,5 +1,112 @@
 % tbsrc/resolution.tex — Detector Resolution and the Point-Spread Function
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). Blur sources; pixelated vs monolithic; the
+% Gaussian PSF operator G; resolution injected at simulation time (not in the
+% reconstruction), reconciling the forward model of Sec. projection/intro.
 \section{Detector Resolution and the Point-Spread Function}
 \label{sec:resolution}
-\textit{(Section to be written.)}
+
+The projector of Section~\ref{sec:projection} integrates infinitely thin lines:
+it has no resolution of its own. Real PET data are blurred, and the previous
+sections were careful to keep that blur out of the geometry. This section is
+where it goes back in --- as a separate operator $\Gop$ --- and explains where,
+in this tutorial, it enters the calculation.
+
+\subsection{Sources of blur}
+\label{sec:resolution:sources}
+
+The spatial resolution of a PET scanner is limited by several physical effects,
+none of which the reconstruction can undo by itself~\cite{moses2011}:
+\begin{itemize}
+  \item \emph{Positron range}: the positron travels a short distance before
+        annihilating, so the annihilation is displaced from the emission ---
+        sub-millimetre for $^{18}$F, larger for higher-energy emitters.
+  \item \emph{Photon non-collinearity}: the two photons are not emitted exactly
+        back to back (the pair carries residual momentum), spreading the angle
+        by about $\pm0.25^\circ$; the resulting blur grows with the ring
+        diameter, reaching a couple of millimetres in a human-scale scanner.
+  \item \emph{Intrinsic positioning}: how well the detector localizes each
+        photon interaction --- set by the crystal size for a pixelated detector,
+        or by the readout and the position estimator for a monolithic one.
+  \item \emph{Depth of interaction (DOI)}: photons enter the detector
+        obliquely and interact at varying depth; without DOI information this
+        smears the LOR, worsening off-centre (the parallax effect).
+\end{itemize}
+These contributions add approximately in quadrature to a total resolution,
+quoted as a full width at half maximum ($\FWHM$). It is a property of the
+scanner and the tracer, supplied to the model as data --- \code{RecoCrysp}
+derives none of it.
+
+\subsection{Pixelated versus monolithic detectors}
+\label{sec:resolution:detectors}
+
+The intrinsic term is where the two detector models of
+Section~\ref{sec:geometry} differ sharply. A pixelated crystal of width $\ell$
+localizes a photon only to within that crystal; a uniform uncertainty over a
+width $\ell$ has standard deviation $\sigma=\ell/\sqrt{12}$, and the two
+endpoints together give an intrinsic resolution of about $\ell/2$ FWHM at the
+centre of the field of view. Resolution is thus tied to crystal size: finer
+images demand smaller crystals, hence more readout channels.
+
+A monolithic detector breaks this link. A large undivided block is read by a
+photosensor array, and a neural network estimates the interaction position from
+the light pattern; the accuracy is set by the light statistics and the network,
+\emph{not} by the block size. CRYSP~\cite{crysp2026} reaches about
+$3.5\,\mathrm{mm}$ FWHM with $50\,\mathrm{mm}$ blocks --- far finer than the
+$\ell/2\approx25\,\mathrm{mm}$ a pixelated reading of the same block would give.
+This decoupling is exactly why Section~\ref{sec:geometry:continuous} models the
+detector as a continuous surface.
+
+\subsection{The point-spread function as an operator}
+\label{sec:resolution:psf}
+
+Whatever its sources, the combined effect is that a point of activity is
+recorded as a small blob: the system point-spread function (PSF). Over the
+central field of view it is well approximated by an isotropic, spatially
+invariant Gaussian of the total FWHM, which we write as a linear operator
+$\Gop$ acting on the image --- convolution with that Gaussian,
+\begin{equation}
+  (\Gop\,\xv)(\bm u) = \int g(\bm u-\bm u')\,\xv(\bm u')\,\mathrm{d}\bm u' ,
+  \qquad
+  \sigma = \frac{\FWHM}{2\sqrt{2\ln 2}} \approx \frac{\FWHM}{2.355} ,
+  \label{eq:res-gaussian}
+\end{equation}
+with $g$ the Gaussian of width $\sigma$. Like $\Aop$, $\Gop$ is applied without
+forming a matrix; being a symmetric kernel it is self-adjoint, $\Gop=\Gop^{\mathsf T}$.
+The resolution-aware forward operator is the composition $\Aop\,\Gop$, as
+previewed in the full data model \eqref{eq:intro-full}. (The grid must sample
+this Gaussian: this is the origin of the $\Delta\approx\tfrac13$--$\tfrac12\,\FWHM$
+rule of Section~\ref{sec:grid:resolution}.) Treating the PSF as isotropic and
+shift-invariant is an approximation --- real PSFs broaden towards the edge of
+the field of view --- but an adequate one for the central-FOV examples here.
+
+\subsection{Where the resolution enters}
+\label{sec:resolution:where}
+
+In this tutorial the resolution is injected \emph{at simulation time}, not in
+the reconstruction. To generate realistic data for a known phantom
+$\xv_{\mathrm{true}}$ we blur it and project the blurred image,
+\begin{equation}
+  \pred = \Aop\,(\Gop\,\xv_{\mathrm{true}}),
+  \qquad
+  \yv \sim \mathrm{Poisson}(\pred),
+  \label{eq:res-sim}
+\end{equation}
+so the data $\yv$ carry the $3.5\,\mathrm{mm}$ blur. The reconstruction
+(Section~\ref{sec:mlem}) then runs with the \emph{plain} projector $\Aop$.
+Because the data are explained by $\Aop\,(\Gop\,\xv_{\mathrm{true}})$, the
+iteration converges towards the blurred image $\Gop\,\xv_{\mathrm{true}}$: the
+result is resolution-limited, resolving structures larger than the FWHM and not
+those below it. This is the point of the resolution model --- one sees the limit
+directly in the reconstructed image.
+
+\begin{remark}
+Equation~\eqref{eq:res-sim} is the \emph{image-space} way to inject resolution,
+convenient because the phantom is known. A Monte-Carlo simulation does it the
+\emph{detector} way instead --- jittering each LOR endpoint by the positioning
+error, with no $\Gop$ operator at all. Both put the blur in the data, and the
+reconstruction is identical. Building $\Gop$ \emph{into} the reconstruction
+model (so that the iteration deconvolves towards $\xv_{\mathrm{true}}$) is
+\emph{resolution recovery}: feasible with the same $\Gop$, but deliberately left
+out of scope --- the examples reconstruct with $\Aop$ and report the
+resolution-limited image.
+\end{remark}
