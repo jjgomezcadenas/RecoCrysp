@@ -74,6 +74,16 @@ accumulate in `Float64` for reference comparisons.
   these are native (MSL 3) and fast.
 - On unified-memory Macs, host↔device transfers are cheap, but keeping data
   resident as `MtlArray`s across repeated projections is still preferable.
-- Measured on an M1 Max (128³ image, 500k random LORs):
-  forward 57 Mlors/s, back 36 Mlors/s on Metal, versus 20 / 3.3 Mlors/s on
-  8 CPU threads.
+- Measured with `benchmark/throughput.jl` (128³ image, best of 12 timed runs):
+
+  | Backend                  | forward      | back         |
+  | ------------------------ | ------------ | ------------ |
+  | CPU, M1 Max (8 threads)  | 19.9 Mlors/s | 3.3 Mlors/s  |
+  | CPU, M5 Pro (6 threads)  | 74 Mlors/s   | 6.0 Mlors/s  |
+  | CPU, M5 Pro (18 threads) | 153 Mlors/s  | 6.1 Mlors/s  |
+  | Metal, M1 Max            | 57.3 Mlors/s | 36.0 Mlors/s |
+  | Metal, M5 Pro            | 170 Mlors/s  | 171 Mlors/s  |
+
+  The back projector's atomic scatter serializes across CPU threads (so it does
+  not speed up with more cores) but parallelizes on the GPU — hence the large
+  Metal advantage on back projection.

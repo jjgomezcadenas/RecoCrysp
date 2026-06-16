@@ -59,13 +59,16 @@ original library.
 
 `Pkg.test()` checks exact line integrals against analytic values and the
 adjointness identity `⟨Ax, y⟩ = ⟨x, Aᵀy⟩` (machine precision, ~1e-10 relative)
-on every available backend. Measured with `benchmark/throughput.jl` on a
-128³ image, 500k random LORs:
+on every available backend. Measured with `benchmark/throughput.jl`
+(128³ image, best of 12 timed runs):
 
-| Backend                | forward       | back          |
-| ---------------------- | ------------- | ------------- |
-| CPU, 8 threads (M1 Max)| 19.9 Mlors/s  | 3.3 Mlors/s   |
-| Metal GPU (M1 Max)     | 57.3 Mlors/s  | 36.0 Mlors/s  |
+| Backend                  | forward      | back         |
+| ------------------------ | ------------ | ------------ |
+| CPU, M1 Max (8 threads)  | 19.9 Mlors/s | 3.3 Mlors/s  |
+| CPU, M5 Pro (6 threads)  | 74 Mlors/s   | 6.0 Mlors/s  |
+| CPU, M5 Pro (18 threads) | 153 Mlors/s  | 6.1 Mlors/s  |
+| Metal GPU, M1 Max        | 57.3 Mlors/s | 36.0 Mlors/s |
+| Metal GPU, M5 Pro        | 170 Mlors/s  | 171 Mlors/s  |
 
 ## Documentation
 
