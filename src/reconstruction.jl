@@ -29,13 +29,6 @@
 # noise-free test. `mult` is the per-LOR factor n (default all-ones). All
 # arithmetic is Float32; arrays must share one backend.
 
-module Reconstruction
-
-using ..RecoCrysp: joseph3d_fwd, joseph3d_back
-
-export sensitivity_image, ListmodePoissonModel, predicted, neg_log_likelihood,
-       em_update, mlem, osem, subset_models
-
 """
     sensitivity_image(xstart, xend, img_shape, img_origin, voxsize; weights = nothing)
 
@@ -216,5 +209,3 @@ function subset_models(
     end
     return models
 end
-
-end # module Reconstruction
