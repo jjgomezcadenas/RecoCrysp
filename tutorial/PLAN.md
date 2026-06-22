@@ -183,4 +183,7 @@ tutorial/
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
 - [x] attenuation worked example: code (tutorial/examples/attenuation/) +
       tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
-- [ ] further examples: + resolution (G), + randoms, + scatter
+- [x] resolution worked example: library phantoms.jl + psf.jl (gaussian_blur);
+      code (tutorial/examples/resolution/) + tutorial_example_resolution.tex
+      (Derenzo in water; AC + 3.5mm G; coarse rods resolve, fine merge)
+- [ ] further examples: + randoms, + scatter
