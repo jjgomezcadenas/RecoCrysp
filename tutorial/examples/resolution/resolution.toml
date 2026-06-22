@@ -5,9 +5,9 @@
 diameter = 774.0     # mm
 afov     = 1024.0    # mm
 
-[grid]               # fine voxels: needed to render the small rods and the blur
-n       = [91, 91, 51]
-voxsize = 2.0       # mm, isotropic
+[grid]               # heavy but tunable: lower n_lors / raise voxsize to run lighter
+n       = [181, 181, 101]
+voxsize = 1.0       # mm, isotropic
 
 [derenzo]            # hot rods in 6 sectors, inside a water cylinder
 radius        = 80.0                        # cylinder radius, mm
@@ -22,9 +22,9 @@ mu_water = 0.0096    # mm^-1, attenuation of the water cylinder at 511 keV
 fwhm = 5.0           # mm, detector point-spread (CRYSP)
 
 [sim]
-n_lors       = 20000000
+n_lors       = 100000000
 total_counts = 1.0e9
 seed         = 1
 
 [recon]
-niter = 12
+niter = 50

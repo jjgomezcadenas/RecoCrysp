@@ -14,114 +14,106 @@
 
 \begin{abstract}
 A second worked example: a Derenzo rod phantom in a water cylinder on the
-continuous (CRYSP) scanner. We add the detector resolution to the
-attenuation-corrected reconstruction of the previous example and watch the
-resolution limit appear directly --- the coarse rod sectors resolve into distinct
-dots while the fine ones merge. Resolution is injected at simulation time through
-the library operator $\Gop$; the reconstruction uses the plain projector. To make
-the effect unmistakable we exaggerate the resolution to $5\,\mathrm{mm}$ (CRYSP's
-intrinsic value is $3.5\,\mathrm{mm}$; it is a one-line change in the
-configuration). Code in \code{tutorial/examples/resolution/}.
+continuous (CRYSP) scanner. To separate the reconstruction from the resolution we
+simulate \emph{two} datasets that differ only by the detector blur --- one sharp
+($\Gop=\mathbf I$), one smeared ($\Gop$ a $5\,\mathrm{mm}$ Gaussian) --- and
+reconstruct both with the same attenuation-corrected MLEM. The sharp data
+recover the sharp rods (validating the reconstruction); the smeared data recover
+the resolution-limited image $\Gop\,\xv$. Their difference is purely the
+resolution. Code in \code{tutorial/examples/resolution/}.
 \end{abstract}
 
 \section{Overview}
 \label{sec:ex-res:overview}
 
-The previous example switched detector resolution off ($\Gop=\mathbf I$). Here we
-turn it on. Following Part~I (Detector Resolution), resolution is a Gaussian
-point-spread $\Gop$ applied to the activity, and we inject it \emph{at simulation
-time}: the data are formed from the blurred activity, and the reconstruction runs
-with the plain projector $\Aop$, so it converges towards the resolution-limited
-image $\Gop\,\xv$. With normalization $\nrm=\bm1$ and no background, the mean
-counts are
+Resolution is a Gaussian point-spread $\Gop$ applied to the activity (Part~I,
+Detector Resolution), injected \emph{at simulation time}: the reconstruction runs
+with the plain projector $\Aop$ and converges towards $\Gop\,\xv$. To show this
+cleanly --- and to check that the reconstruction itself is faithful --- we run it
+twice on the same geometry, attenuation and sensitivity, changing only the
+activity that generates the data:
 \begin{equation}
-  \pred_i \;=\; a_i\,\bigl(\Aop\,\Gop\,\xv\bigr)_i ,
+  \text{sharp:}\quad \pred = a\,(\Aop\,\xv) ,
   \qquad
-  a_i = \exp\!\Bigl(-\!\int_{\mathrm{LOR}_i}\!\mu\,\mathrm{d}\ell\Bigr).
-  \label{eq:ex-res-model}
+  \text{smeared:}\quad \pred = a\,(\Aop\,\Gop\,\xv) ,
+  \label{eq:ex-res-two}
 \end{equation}
-A Derenzo phantom makes the effect of $\Gop$ unmistakable: sectors of rods at
-decreasing diameter, where rods coarser than the resolution stay separated and
-finer ones blur together.
+with $a_i=\exp(-\!\int_{\mathrm{LOR}_i}\mu\,\mathrm{d}\ell)$. A Derenzo phantom
+--- sectors of rods at decreasing diameter --- makes $\Gop$ unmistakable. We
+exaggerate the resolution to $5\,\mathrm{mm}$ for clarity (CRYSP's intrinsic
+value is $3.5\,\mathrm{mm}$; a one-line change in the configuration).
 
 \section{Setup}
 \label{sec:ex-res:setup}
 
-The scanner is again the CRYSP continuous cylinder
+The scanner is the CRYSP continuous cylinder
 ($\varnothing\,77.4\,\mathrm{cm}$, AFOV $102.4\,\mathrm{cm}$). The phantom is a
-water cylinder of radius $80\,\mathrm{mm}$ --- the attenuating medium and the
-$\mu$-map --- containing six sectors of hot rods of diameters
-$\{3,4,5,6,8,10\}\,\mathrm{mm}$, centre-to-centre spacing twice the diameter. The
-grid is $2\,\mathrm{mm}$ isotropic, $91\times91\times51$, chosen by the
-$\Delta\approx\tfrac13$--$\tfrac12\,\FWHM$ rule of Part~I (The Image) for a
-$5\,\mathrm{mm}$ resolution and fine enough to render the rods. Both phantom and
-grid come straight from the library:
+water cylinder of radius $80\,\mathrm{mm}$ --- the $\mu$-map --- with six sectors
+of rods of diameters $\{3,4,5,6,8,10\}\,\mathrm{mm}$. To render the rods and a
+sharp reconstruction the grid is fine, $1\,\mathrm{mm}$ isotropic
+($181\times181\times101$). Both phantom and grid come from the library:
 \begin{lstlisting}
 x_true = derenzo(n, org, vs; radius = 80.0, length = 100.0,
                  rod_diameters = [3,4,5,6,8,10], spacing = 2.0)
 mumap  = uniform_cylinder(n, org, vs; radius = 80.0, length = 100.0,
                           value = 0.0096)   # water, mm^-1
+x_blur = gaussian_blur(x_true, 5.0, vs)     # G x_true (the recoverable image)
 \end{lstlisting}
 
-\section{Simulation}
+\section{Simulation and reconstruction}
 \label{sec:ex-res:sim}
 
-The attenuation factor $\att$ is the projected $\mu$-map, exponentiated (Part~I,
-Projection), as before. The new ingredient is the resolution: we blur the
-activity with the library operator $\Gop$ (\code{gaussian\_blur}, a separable,
-self-adjoint Gaussian) and project the blurred image.
+The attenuation factor $\att$ and the sensitivity $\sensv=\Aadj(\att)$ depend
+only on the geometry and the $\mu$-map, so they are computed once and shared by
+both datasets. Each dataset is then a Poisson realization of \eqref{eq:ex-res-two}
+and is reconstructed with the same attenuation-corrected, plain-$\Aop$ MLEM:
 \begin{lstlisting}
-x_blur = gaussian_blur(x_true, 5.0, vs)              # G x_true (FWHM = 5 mm)
-a    = exp.(-joseph3d_fwd(xs, xe, mumap, org, vs))   # attenuation
-ybar = a .* joseph3d_fwd(xs, xe, x_blur, org, vs)    # a .* A*(G x_true)
-counts = [rand(rng, Poisson(lam)) for lam in scale .* ybar]
-\end{lstlisting}
+a    = exp.(-joseph3d_fwd(xs, xe, mumap, org, vs))
+sens = sensitivity_image(xs, xe, n, org, vs; weights = a)
 
-\section{Reconstruction}
-\label{sec:ex-res:recon}
-
-We reconstruct with the attenuation-corrected listmode MLEM of the previous
-example ($\code{mult}=\att$, matched sensitivity), using the \emph{plain}
-projector --- the resolution stays in the data, not the model. The estimate
-therefore converges towards $\Gop\,\xv$, the best the detector can deliver.
-\begin{lstlisting}
-sens  = sensitivity_image(xs, xe, n, org, vs; weights = a)
-model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
-                             counts = counts, mult = a)
-x_rec = mlem(model, x0; niter = 12)
+function simulate_reconstruct(activity, seed_off)   # a, sens, xs, xe shared
+    ybar  = a .* joseph3d_fwd(xs, xe, activity, org, vs)
+    counts = [rand(rng, Poisson(lam)) for lam in scale .* ybar]
+    model  = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
+                                  counts = counts, mult = a)
+    return mlem(model, x0; niter = 50)
+end
+rec_sharp = simulate_reconstruct(x_true, 1)    # G = 1 data
+rec_blur  = simulate_reconstruct(x_blur, 2)    # G = 5 mm data
 \end{lstlisting}
 
 \section{Results}
 \label{sec:ex-res:results}
 
-Figure~\ref{fig:ex-res} shows the central transverse slice. The
-resolution-limited image $\Gop\,\xv$ (centre) is the target: the
-$8$--$10\,\mathrm{mm}$ sectors are clearly separated rods, the
-$5$--$6\,\mathrm{mm}$ sectors are still resolved, and the $3$--$4\,\mathrm{mm}$
-sectors --- below the $5\,\mathrm{mm}$ resolution --- merge into a smear. The
-reconstruction (right) reproduces exactly this transition: one \emph{sees} the
-resolution limit, sector by sector. With $10^9$ counts and early stopping
-($12$ iterations, Part~I, Acceleration and Noise) the residual MLEM noise is
-modest and the reconstruction tracks $\Gop\,\xv$ closely.
-
-The cleanliness is set by the number of sampled LORs as much as by the counts.
-A continuous scanner's randomly sampled LORs cover line space far less uniformly
-than a structured sinogram, so resolving the fine rods cleanly needs dense
-angular coverage --- $2\times10^7$ LORs here. Fewer LORs leave the
-high-frequency rod structure under-sampled, and the reconstruction looks grainy
-\emph{however many counts} are collected; the cure is more LORs, not more
-counts.
+Figure~\ref{fig:ex-res} shows the four central slices. The reconstruction from
+the \emph{sharp} data (third panel) recovers the truth: every rod sector,
+including the finest, comes back, with a rod/gap contrast of $40$ --- the only
+residual is the $\sim\!1\,\mathrm{mm}$ intrinsic blur of the Joseph
+interpolation, and the contrast keeps climbing with iterations (it was $15$ at
+$20$ iterations, $40$ at $50$), confirming the reconstruction converges to the
+truth. The reconstruction from the \emph{smeared} data (fourth panel) instead
+recovers $\Gop\,\xv$ (second panel): its rod/gap contrast is $4.3$, matching the
+recoverable value of $4.5$, so the coarse sectors resolve and the
+$3$--$4\,\mathrm{mm}$ sectors merge at the $5\,\mathrm{mm}$ limit. The two
+reconstructions use \emph{identical} code and settings; their difference is
+entirely the detector resolution.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{figures/resolution_result.png}
-  \caption{Derenzo phantom, central slice. Left: the sharp truth. Centre: the
-    resolution-limited image $\Gop\,\xv$ that the detector can recover. Right:
-    the attenuation-corrected MLEM reconstruction, which tracks $\Gop\,\xv$ ---
-    the $8$--$10\,\mathrm{mm}$ rods resolve, the $3$--$4\,\mathrm{mm}$ rods merge
-    at the (here $5\,\mathrm{mm}$) resolution limit.}
+  \caption{Derenzo phantom, central slice. From left: the sharp truth; the
+    resolution-limited image $\Gop\,\xv$; the MLEM reconstruction from sharp
+    ($\Gop=\mathbf I$) data, which recovers the truth; and the MLEM
+    reconstruction from smeared ($5\,\mathrm{mm}$) data, which recovers
+    $\Gop\,\xv$. Identical reconstruction in both --- only the data differ.}
   \label{fig:ex-res}
 \end{figure}
+
+A practical note on sampling. The cleanliness here needs many LORs, not many
+counts: a continuous scanner's randomly sampled LORs cover line space far less
+uniformly than a structured sinogram, so resolving fine structure requires dense
+angular coverage --- $10^8$ LORs in this run. Fewer LORs leave the rods grainy
+\emph{however many counts} are collected; the cure is more LORs.
 
 \section{Running the example}
 \label{sec:ex-res:run}
@@ -136,17 +128,19 @@ julia -t auto --project=tutorial/examples/resolution \
   tutorial/examples/resolution/run.jl
 python3 tutorial/examples/resolution/resolution_plot.py
 \end{lstlisting}
-Set the resolution \code{fwhm} back to $3.5\,\mathrm{mm}$, or change the rod
-diameters and the voxel size in the TOML, to explore the limit.
+The run is deliberately heavy ($10^8$ LORs, $1\,\mathrm{mm}$ voxels, two
+reconstructions, a few minutes); lower \code{n\_lors} or raise \code{voxsize} in
+the TOML to run lighter, or set \code{fwhm} to $3.5\,\mathrm{mm}$ for the true
+CRYSP resolution.
 
 \section{What this leaves out}
 \label{sec:ex-res:next}
 
-Attenuation and resolution are now both in place. The remaining physical effects
---- \emph{randoms} and \emph{scatter} --- are additive backgrounds that enter
-through the \code{contamination} field, and are added in the following examples
-without changing the reconstruction code, only the simulated data
-(Part~I, The Complete Data Model)~\cite{crysp2026}.
+Attenuation and resolution are both in place. The remaining physical effects ---
+\emph{randoms} and \emph{scatter} --- are additive backgrounds entering through
+the \code{contamination} field, added in the following examples without changing
+the reconstruction code, only the simulated data (Part~I, The Complete Data
+Model)~\cite{crysp2026}.
 
 \input{tbsrc/references}
 
