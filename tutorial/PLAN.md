@@ -200,7 +200,8 @@ Open:
 - [x] §10 pipeline.tex (two-phase skeleton: calibrate once / iterate; monitoring + early stop)
 - [x] Appendix A: EM derivation (complete data → Q-function → multiplicative update;
       Gibbs monotonicity) — closes the §8 forward reference
-- [ ] §11 summary (example-ladder table), appendices B (notation) + C (API) — stage 4
+- [x] §11 summary.tex (data-model recap; example-ladder table; physics-vs-solver axis)
+- [ ] appendices B (notation glossary) + C (API quick reference) — stage 4 final
 - [x] attenuation worked example: code (tutorial/examples/attenuation/) +
       tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
 - [x] resolution worked example: library phantoms.jl + psf.jl (gaussian_blur);
