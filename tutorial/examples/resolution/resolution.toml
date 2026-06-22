@@ -22,7 +22,7 @@ mu_water = 0.0096    # mm^-1, attenuation of the water cylinder at 511 keV
 fwhm = 5.0           # mm, detector point-spread (CRYSP)
 
 [sim]
-n_lors       = 5000000
+n_lors       = 20000000
 total_counts = 1.0e9
 seed         = 1
 

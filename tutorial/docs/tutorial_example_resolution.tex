@@ -104,6 +104,14 @@ resolution limit, sector by sector. With $10^9$ counts and early stopping
 ($12$ iterations, Part~I, Acceleration and Noise) the residual MLEM noise is
 modest and the reconstruction tracks $\Gop\,\xv$ closely.
 
+The cleanliness is set by the number of sampled LORs as much as by the counts.
+A continuous scanner's randomly sampled LORs cover line space far less uniformly
+than a structured sinogram, so resolving the fine rods cleanly needs dense
+angular coverage --- $2\times10^7$ LORs here. Fewer LORs leave the
+high-frequency rod structure under-sampled, and the reconstruction looks grainy
+\emph{however many counts} are collected; the cure is more LORs, not more
+counts.
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{figures/resolution_result.png}
