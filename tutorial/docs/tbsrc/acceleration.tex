@@ -1,5 +1,124 @@
 % tbsrc/acceleration.tex — Acceleration and Noise: OSEM and Semi-convergence
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). OSEM (subsets, subset sensitivity, the
+% speed/accuracy caveat); noise amplification and semi-convergence; early
+% stopping; a brief regularization note. Matches osem/subset_models in
+% src/reconstruction.jl.
 \section{Acceleration and Noise: OSEM and Semi-convergence}
 \label{sec:acceleration}
-\textit{(Section to be written.)}
+
+MLEM as written in Section~\ref{sec:mlem} is correct but slow and, run to
+convergence, noisy. Two practical matters stand between \eqref{eq:ml-em} and a
+usable image: each iteration touches every event, so many iterations are
+expensive; and the maximum-likelihood image it converges to is itself noisy, so
+converging fully is the wrong goal. Ordered subsets address the first,
+early stopping the second. They are the difference between the algorithm and a
+reconstruction recipe.
+
+\subsection{Ordered-subsets EM (OSEM)}
+\label{sec:acceleration:osem}
+
+The cost of one MLEM update is dominated by the forward and back-projection over
+the full event list. Ordered-Subsets EM~\cite{hudson1994} splits the events into
+$M$ disjoint subsets and applies one EM update per subset, so a single pass
+through the data --- one \emph{epoch} --- performs $M$ image updates instead of
+one:
+\begin{equation}
+  \xv \;\leftarrow\; \frac{\xv}{\sensv^{(m)}}\;\odot\;
+       \Aadj_{(m)}\!\Bigl(\code{mult}^{(m)}\odot
+       \frac{\code{counts}^{(m)}}{\pred^{(m)}}\Bigr),
+  \qquad m = 1,\dots,M,
+  \label{eq:acc-osem}
+\end{equation}
+where subset $m$ carries its own events and its own \emph{subset sensitivity}
+$\sensv^{(m)}=\Aadj_{(m)}(\code{mult}^{(m)})$ --- the back-projection of the
+multiplicative factors over that subset's LORs, not the full set. This last point
+is essential: each update is normalized by the detectability of the LORs it
+actually uses, so the subset updates are on a common scale and one epoch advances
+the image roughly as far as $M$ full MLEM iterations, an $M$-fold speed-up.
+
+In the library, \code{subset\_models} splits the list into $M$ interleaved
+subsets (subset $k$ is every $M$-th LOR from $k$, which keeps each subset's
+angular coverage representative) and builds a \code{ListmodePoissonModel} per
+subset, each with its own exact $\sensv^{(m)}$. \code{osem} then sweeps the
+subsets once per epoch:
+\begin{lstlisting}
+models = subset_models(xs, xe, org, vs, n, nsub; counts = counts, mult = a)
+rec    = osem(models, x0; nepochs = 10)   # 10 epochs ~ 10*nsub MLEM iterations
+\end{lstlisting}
+
+The acceleration is not free. The per-subset likelihood is not the full
+likelihood, so OSEM is \emph{not} monotone and does not converge to a single
+point: it settles into a limit cycle, drifting among $M$ nearby images rather
+than landing on the ML solution. With many subsets and few counts per subset the
+cycle is wide and the result biased. The usual compromise is a moderate subset
+count that keeps each subset statistically representative; OSEM is then used to
+reach a good image quickly, and a few plain MLEM iterations ($M=1$) can finish if
+a stable fixed point is wanted.
+
+\subsection{Noise and semi-convergence}
+\label{sec:acceleration:semiconv}
+
+The deeper issue is not speed. MLEM converges \emph{monotonically} to the
+maximum-likelihood image (Section~\ref{sec:mlem}), but with Poisson data that
+limit is a noisy image: the likelihood is maximized by an estimate that explains
+not only the signal but the particular noise realization in the counts. Because
+the update is multiplicative and unregularized, each iteration injects a little
+more high-frequency detail, and late iterations fit noise. The likelihood keeps
+improving while the image quality, after an early peak, gets worse --- the hallmark
+of an ill-posed inverse problem.
+
+This is \emph{semi-convergence}: the error against the true image falls, reaches
+a minimum, then rises, even as $f$ decreases throughout
+(Figure~\ref{fig:acc-semiconv} sketches the two curves). The reconstruction
+passes through its best estimate at an intermediate iteration and degrades if
+pushed further.
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[x=1.1cm,y=0.9cm]
+    % axes
+    \draw[->] (0,0) -- (7.2,0) node[below right] {iteration $k$};
+    \draw[->] (0,0) -- (0,4.3) node[above left] {};
+    % negative log-likelihood: monotonically decreasing, flattening
+    \draw[thick,blue,domain=0.15:7,samples=80,smooth]
+      plot (\x, {3.6*exp(-0.55*\x)+0.35});
+    \node[blue,right] at (3.6,1.05) {neg.\ log-likelihood $f$ (always $\downarrow$)};
+    % error vs truth: U-shaped (semi-convergence)
+    \draw[thick,red,domain=0.5:7,samples=90,smooth]
+      plot (\x, {0.42*(\x-2.6)*(\x-2.6)+1.3});
+    \node[red,right] at (4.4,3.5) {error vs truth};
+    % minimum marker
+    \draw[densely dashed,gray] (2.6,0) node[below,black]{\small stop} -- (2.6,1.3);
+    \fill[red] (2.6,1.3) circle (1.6pt);
+  \end{tikzpicture}
+  \caption{Semi-convergence. The negative log-likelihood $f$ decreases at every
+    iteration (MLEM is monotone), but the error against the true image is
+    U-shaped: it reaches a minimum at an intermediate iteration and rises as
+    later iterations fit the Poisson noise. The reconstruction is taken at the
+    minimum --- \emph{early stopping}.}
+  \label{fig:acc-semiconv}
+\end{figure}
+
+The practical remedy is \emph{early stopping}: take the image at a fixed, modest
+iteration count rather than at convergence. The optimum depends on the count
+level and the structure sought --- more counts and coarser features tolerate more
+iterations --- so the iteration number is a reconstruction parameter, tuned per
+study, not a constant. The worked examples stop at tens of iterations and report
+the interior noise alongside the contrast to show the trade (Part~II): too few
+iterations leave the image blurred and low-contrast, too many amplify the noise,
+and a stopping point in between gives the best estimate. With OSEM the same
+applies in epochs, scaled by the subset count.
+
+\subsection{Beyond early stopping}
+\label{sec:acceleration:reg}
+
+Early stopping controls noise by halting before it dominates, which is implicit
+regularization --- effective and parameter-light, but blunt: it applies one
+global iteration budget to every region regardless of its local statistics. The
+explicit alternative is to add a smoothness prior, reconstructing the maximum
+\emph{a posteriori} image by minimizing $f(\xv)+\beta\,R(\xv)$ with $R$ penalizing
+roughness and $\beta$ setting its strength. The preconditioned-gradient view of
+Section~\ref{sec:mlem} makes this a small change: the same step
+$\xv-(\xv/\sensv)\odot\nabla(\cdot)$ applies to the penalized objective, with the
+prior's gradient added to $\nabla f$. RecoCrysp ships the unregularized MLEM/OSEM
+and relies on early stopping; a penalty term is a natural extension of the same
+update and is left for later work.
