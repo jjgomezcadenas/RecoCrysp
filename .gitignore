@@ -10,3 +10,6 @@ tutorial/docs/*.toc
 tutorial/docs/*.pdf
 tutorial/docs/*.synctex.gz
 tutorial/docs/tbsrc/*.aux
+# example outputs (regenerable by run.jl / *_plot.py)
+tutorial/examples/*/*_results.npz
+tutorial/examples/*/*_result.png

@@ -1,0 +1,22 @@
+# Attenuation example (tutorial §6.1) — all parameters are tunable here.
+
+[scanner]            # continuous (monolithic) cylindrical PET, CRYSP dimensions
+diameter = 774.0     # mm
+afov     = 1024.0    # mm
+
+[grid]               # reconstruction image grid (covers the phantom, not the AFOV)
+n       = [75, 75, 75]
+voxsize = 4.0        # mm, isotropic
+
+[phantom]            # uniform-activity sphere that is also the attenuating medium
+sphere_radius = 100.0    # mm
+activity      = 1.0      # arbitrary units inside the sphere
+mu_water      = 0.0096   # mm^-1, linear attenuation at 511 keV
+
+[sim]
+n_lors       = 3000000   # sampled LORs (events)
+total_counts = 1.0e8     # total Poisson counts
+seed         = 1
+
+[recon]
+niter = 40               # MLEM iterations
