@@ -1,8 +1,97 @@
 % tbsrc/appendices.tex — Appendices.  STATUS: STUB (after \appendix in driver).
 \section{Expectation--Maximization derivation of MLEM}
 \label{app:em}
-\textit{(to be written: the complete EM derivation --- complete-data
-likelihood, the $Q$-function, and the multiplicative update.)}
+
+This appendix carries through the EM argument sketched in
+Section~\ref{sec:mlem}, deriving the multiplicative update \eqref{eq:ml-em} from
+the Poisson model. The forward model is $\pred_i = \code{mult}_i\,(\Aop\xv)_i +
+\sct_i$ with $(\Aop\xv)_i=\sum_j A_{ij}x_j$, and the data are independent counts
+$y_i\sim\mathrm{Poisson}(\pred_i)$ (Section~\ref{sec:statistics}). Here
+$\code{mult}=\nrm\odot\att$, $\sct_i$ is the additive background
+($\code{contamination}$), and $A_{ij}\ge0$ are the system-matrix entries.
+
+\subsection*{Complete data}
+
+EM introduces latent variables that, if observed, would make estimation trivial.
+Split each LOR's counts by origin: let $N_{ij}$ be the number of counts on LOR
+$i$ emitted from voxel $j$, and $N_{i0}$ the background counts. Decomposing the
+Poisson mean $\pred_i$ over its independent contributions,
+\begin{equation}
+  N_{ij}\sim\mathrm{Poisson}\bigl(\code{mult}_i\,A_{ij}\,x_j\bigr),
+  \qquad
+  N_{i0}\sim\mathrm{Poisson}(\sct_i),
+  \qquad
+  y_i = \sum_j N_{ij} + N_{i0},
+  \label{eq:app-em-latent}
+\end{equation}
+all independent; the sum reproduces $y_i\sim\mathrm{Poisson}(\pred_i)$ since
+independent Poissons add. Treating $\{N_{ij}\}$ as observed, the complete-data
+log-likelihood, dropping terms free of $\xv$ (the background and the
+$\log N_{ij}!$ constants), is
+\begin{align}
+  \log L_{\mathrm c}(\xv)
+  &= \sum_{i,j}\Bigl[N_{ij}\log\bigl(\code{mult}_i A_{ij} x_j\bigr)
+        - \code{mult}_i A_{ij} x_j\Bigr] + \text{const} \notag\\
+  &= \sum_j\Bigl[\Bigl(\textstyle\sum_i N_{ij}\Bigr)\log x_j
+        - x_j\,\underbrace{\textstyle\sum_i \code{mult}_i A_{ij}}_{(\sensv)_j}\Bigr]
+        + \text{const},
+  \label{eq:app-em-complete}
+\end{align}
+where $(\sensv)_j=\sum_i \code{mult}_i A_{ij}=\Aadj(\code{mult})_j$ is the
+sensitivity image. The activity decouples voxel by voxel: each $x_j$ sees only its
+own total emission $\sum_i N_{ij}$ and its detectability $(\sensv)_j$.
+
+\subsection*{E-step}
+
+The latent counts are unknown, so EM replaces them by their conditional
+expectation given the data and the current estimate $\xv^k$. Conditioned on the
+total $y_i$, the counts on LOR $i$ are distributed among the voxels and the
+background by a multinomial with probabilities proportional to their Poisson
+means, hence
+\begin{equation}
+  \mathbb E\bigl[N_{ij}\mid y_i,\xv^k\bigr]
+  = y_i\,\frac{\code{mult}_i A_{ij} x_j^k}{\pred_i^k},
+  \qquad
+  \pred_i^k=\code{mult}_i\,(\Aop\xv^k)_i+\sct_i .
+  \label{eq:app-em-estep}
+\end{equation}
+Substituting into \eqref{eq:app-em-complete} gives the $Q$-function
+$Q(\xv\mid\xv^k)=\sum_j\bigl[\bar M_j^k\log x_j - x_j(\sensv)_j\bigr]+\text{const}$,
+with the expected voxel emission
+\begin{equation}
+  \bar M_j^k
+  = \sum_i \mathbb E\bigl[N_{ij}\mid y_i,\xv^k\bigr]
+  = x_j^k\sum_i A_{ij}\,\frac{\code{mult}_i\,y_i}{\pred_i^k}
+  = x_j^k\,\Aadj\!\Bigl(\code{mult}\odot\frac{y}{\pred^k}\Bigr)_j .
+  \label{eq:app-em-mbar}
+\end{equation}
+
+\subsection*{M-step}
+
+Maximizing the concave $Q$ over $x_j\ge0$ is a one-dimensional problem per voxel.
+Setting $\partial Q/\partial x_j = \bar M_j^k/x_j - (\sensv)_j = 0$ yields
+$x_j^{k+1}=\bar M_j^k/(\sensv)_j$, i.e.\ with \eqref{eq:app-em-mbar}
+\begin{equation}
+  x_j^{k+1}
+  = \frac{x_j^k}{(\sensv)_j}\,
+    \Aadj\!\Bigl(\code{mult}\odot\frac{y}{\pred^k}\Bigr)_j ,
+  \label{eq:app-em-update}
+\end{equation}
+which is exactly the multiplicative MLEM update \eqref{eq:ml-em} (with $y=\code{counts}$).
+Each step is non-negative when $\xv^k$ is, and a voxel at zero stays at zero
+(Section~\ref{sec:mlem}).
+
+\subsection*{Why the likelihood climbs}
+
+EM increases the observed-data likelihood at every step. Writing $\ell(\xv)$ for
+the observed log-likelihood, the general EM identity
+$\ell(\xv)=Q(\xv\mid\xv^k)+H(\xv\mid\xv^k)$ holds, where $H$ is the conditional
+entropy of the latent variables; by Gibbs' inequality
+$H(\xv\mid\xv^k)\ge H(\xv^k\mid\xv^k)$ for all $\xv$. Since the M-step makes
+$Q(\xv^{k+1}\mid\xv^k)\ge Q(\xv^k\mid\xv^k)$, adding the two inequalities gives
+$\ell(\xv^{k+1})\ge\ell(\xv^k)$: the negative log-likelihood
+\code{neg\_log\_likelihood} is monotonically non-increasing, as
+Section~\ref{sec:mlem} asserts.
 
 \section{Notation}
 \label{app:notation}
