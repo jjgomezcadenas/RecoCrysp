@@ -14,12 +14,14 @@
 
 \begin{abstract}
 A second worked example: a Derenzo rod phantom in a water cylinder on the
-continuous (CRYSP) scanner. We add the $3.5\,\mathrm{mm}$ detector resolution to
-the attenuation-corrected reconstruction of the previous example and watch the
-resolution limit appear directly --- the coarse rod sectors resolve into
-distinct dots while the fine ones merge. Resolution is injected at simulation
-time through the library operator $\Gop$; the reconstruction uses the plain
-projector. Code in \code{tutorial/examples/resolution/}.
+continuous (CRYSP) scanner. We add the detector resolution to the
+attenuation-corrected reconstruction of the previous example and watch the
+resolution limit appear directly --- the coarse rod sectors resolve into distinct
+dots while the fine ones merge. Resolution is injected at simulation time through
+the library operator $\Gop$; the reconstruction uses the plain projector. To make
+the effect unmistakable we exaggerate the resolution to $5\,\mathrm{mm}$ (CRYSP's
+intrinsic value is $3.5\,\mathrm{mm}$; it is a one-line change in the
+configuration). Code in \code{tutorial/examples/resolution/}.
 \end{abstract}
 
 \section{Overview}
@@ -49,14 +51,14 @@ The scanner is again the CRYSP continuous cylinder
 ($\varnothing\,77.4\,\mathrm{cm}$, AFOV $102.4\,\mathrm{cm}$). The phantom is a
 water cylinder of radius $80\,\mathrm{mm}$ --- the attenuating medium and the
 $\mu$-map --- containing six sectors of hot rods of diameters
-$\{2.5,3,3.5,4,5,6\}\,\mathrm{mm}$, centre-to-centre spacing twice the diameter.
-Because we must \emph{render} the small rods and the $3.5\,\mathrm{mm}$ blur, the
-grid is fine: $1.25\,\mathrm{mm}$ voxels (Part~I, The Image, the
-$\Delta\approx\tfrac13$--$\tfrac12\,\FWHM$ rule), $145\times145\times81$. Both
-phantom and grid come straight from the library:
+$\{3,4,5,6,8,10\}\,\mathrm{mm}$, centre-to-centre spacing twice the diameter. The
+grid is $2\,\mathrm{mm}$ isotropic, $91\times91\times51$, chosen by the
+$\Delta\approx\tfrac13$--$\tfrac12\,\FWHM$ rule of Part~I (The Image) for a
+$5\,\mathrm{mm}$ resolution and fine enough to render the rods. Both phantom and
+grid come straight from the library:
 \begin{lstlisting}
 x_true = derenzo(n, org, vs; radius = 80.0, length = 100.0,
-                 rod_diameters = [2.5,3,3.5,4,5,6], spacing = 2.0)
+                 rod_diameters = [3,4,5,6,8,10], spacing = 2.0)
 mumap  = uniform_cylinder(n, org, vs; radius = 80.0, length = 100.0,
                           value = 0.0096)   # water, mm^-1
 \end{lstlisting}
@@ -69,7 +71,7 @@ Projection), as before. The new ingredient is the resolution: we blur the
 activity with the library operator $\Gop$ (\code{gaussian\_blur}, a separable,
 self-adjoint Gaussian) and project the blurred image.
 \begin{lstlisting}
-x_blur = gaussian_blur(x_true, 3.5, vs)              # G x_true (FWHM = 3.5 mm)
+x_blur = gaussian_blur(x_true, 5.0, vs)              # G x_true (FWHM = 5 mm)
 a    = exp.(-joseph3d_fwd(xs, xe, mumap, org, vs))   # attenuation
 ybar = a .* joseph3d_fwd(xs, xe, x_blur, org, vs)    # a .* A*(G x_true)
 counts = [rand(rng, Poisson(lam)) for lam in scale .* ybar]
@@ -86,7 +88,7 @@ therefore converges towards $\Gop\,\xv$, the best the detector can deliver.
 sens  = sensitivity_image(xs, xe, n, org, vs; weights = a)
 model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
                              counts = counts, mult = a)
-x_rec = mlem(model, x0; niter = 20)
+x_rec = mlem(model, x0; niter = 12)
 \end{lstlisting}
 
 \section{Results}
@@ -94,12 +96,13 @@ x_rec = mlem(model, x0; niter = 20)
 
 Figure~\ref{fig:ex-res} shows the central transverse slice. The
 resolution-limited image $\Gop\,\xv$ (centre) is the target: the
-$4$--$6\,\mathrm{mm}$ sectors remain distinct rods, while the
-$2.5$--$3\,\mathrm{mm}$ sectors --- below the $3.5\,\mathrm{mm}$ resolution ---
-merge into a smear. The reconstruction (right) reproduces exactly this: coarse
-rods resolved, fine rods merged. One \emph{sees} the resolution limit, sector by
-sector. The residual graininess is statistical (MLEM noise), controlled by early
-stopping as in the previous example (Part~I, Acceleration and Noise).
+$8$--$10\,\mathrm{mm}$ sectors are clearly separated rods, the
+$5$--$6\,\mathrm{mm}$ sectors are still resolved, and the $3$--$4\,\mathrm{mm}$
+sectors --- below the $5\,\mathrm{mm}$ resolution --- merge into a smear. The
+reconstruction (right) reproduces exactly this transition: one \emph{sees} the
+resolution limit, sector by sector. With $10^9$ counts and early stopping
+($12$ iterations, Part~I, Acceleration and Noise) the residual MLEM noise is
+modest and the reconstruction tracks $\Gop\,\xv$ closely.
 
 \begin{figure}[t]
   \centering
@@ -107,8 +110,8 @@ stopping as in the previous example (Part~I, Acceleration and Noise).
   \caption{Derenzo phantom, central slice. Left: the sharp truth. Centre: the
     resolution-limited image $\Gop\,\xv$ that the detector can recover. Right:
     the attenuation-corrected MLEM reconstruction, which tracks $\Gop\,\xv$ ---
-    the $4$--$6\,\mathrm{mm}$ rods resolve, the $2.5$--$3\,\mathrm{mm}$ rods
-    merge at the $3.5\,\mathrm{mm}$ limit.}
+    the $8$--$10\,\mathrm{mm}$ rods resolve, the $3$--$4\,\mathrm{mm}$ rods merge
+    at the (here $5\,\mathrm{mm}$) resolution limit.}
   \label{fig:ex-res}
 \end{figure}
 
@@ -125,8 +128,8 @@ julia -t auto --project=tutorial/examples/resolution \
   tutorial/examples/resolution/run.jl
 python3 tutorial/examples/resolution/resolution_plot.py
 \end{lstlisting}
-Change the rod diameters, the resolution \code{fwhm}, or the voxel size in the
-TOML to explore the limit.
+Set the resolution \code{fwhm} back to $3.5\,\mathrm{mm}$, or change the rod
+diameters and the voxel size in the TOML, to explore the limit.
 
 \section{What this leaves out}
 \label{sec:ex-res:next}
