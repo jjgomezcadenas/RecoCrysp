@@ -147,19 +147,34 @@ tutorial/
 - Normalization n=1 for example 1; "normalization image" = geometric sensitivity
   sens = Aᵀ𝟙.
 
-## 6. Open decisions (pending user confirmation)
+## 6. Decisions
 
-- [ ] 700 mm = ring diameter (assumed) or patient bore?
-- [ ] Simulation method: **Monte-Carlo emission** (sample emission→back-to-back→
-      intersect cylinder→blur endpoints) vs **analytic** (project phantom over
-      dense LOR set→Poisson→blur). Leaning analytic for a first example.
-- [ ] **Add the PSF operator G to the library** (image-space isotropic Gaussian,
-      self-adjoint, FWHM as data; default none) — needed before example 1 code.
-- [ ] Example-1 voxel size (≈1.0–1.25 mm ideal for 2.5 mm res; cost trade-off vs
-      coarser grid).
-- [ ] Intermediate data format: **HDF5** (proposed; PET-standard, matches real LM)
-      vs JLD2. Plotting: **CairoMakie** (proposed). Example code: plain
-      well-commented scripts (the .tex carries the teaching).
+Resolved during this build:
+- [x] Scanner = CRYSP continuous cylinder: Ø774 mm (R≈387), AFOV 1024 mm; intrinsic
+      resolution 3.5 mm (examples may exaggerate, e.g. 5 mm, for clarity).
+- [x] Simulation = **Route B** (analytic: project the blurred phantom, then Poisson).
+      Full Monte-Carlo (endpoint smearing, scatter, randoms) lives in the SEPARATE
+      MC package, not here.
+- [x] PSF operator G: **done** — `src/psf.jl` `gaussian_blur` (image-space,
+      self-adjoint); applied at simulation time only (no recon-side recovery).
+- [x] Voxel size: per example (attenuation 4 mm; resolution 1 mm).
+- [x] Data/plot: NPZ dumps + matplotlib `*_plot.py` scripts (not HDF5/CairoMakie).
+
+Open:
+- [ ] **+scatter example — where does scatter `s` come from?** Import from the MC
+      package, an analytic single-scatter (SSS/Watson) model, or a simplified
+      parametric tail for teaching. Decide before building that example.
+
+## 6b. Recommended resume order
+
+1. **Basis §7→§8→§9** first: the two example docs already cite "Iterative
+   Reconstruction (MLEM)" and "Acceleration and Noise" (§8, §9), which are still
+   stubs — writing them closes that reference gap, and the examples already
+   demonstrate the content (Poisson likelihood, MLEM, semi-convergence).
+2. **+randoms example** (additive flat/smooth `r` via `contamination`; quick, no
+   new library code, no open decisions).
+3. **+scatter example** (after the scatter-source decision above).
+4. **§10 pipeline, §11 summary (example ladder), appendices** — wrap-up.
 
 ## 7. Library status (context anchor)
 
