@@ -1,5 +1,86 @@
 % tbsrc/pipeline.tex — The Reconstruction Pipeline
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). The skeleton common to every worked example:
+% a calibration phase (events, mult, contamination, sensitivity) computed once,
+% then a reconstruction phase that iterates mlem/osem and is monitored/stopped.
 \section{The Reconstruction Pipeline}
 \label{sec:pipeline}
-\textit{(Section to be written.)}
+
+The previous sections built every piece of a reconstruction; this one assembles
+them into the workflow the worked examples all share. Underneath the different
+phantoms and physics, each example is the same two-phase pipeline: a
+\emph{calibration} phase that prepares the model inputs once, and a
+\emph{reconstruction} phase that iterates. Naming this skeleton is what lets the
+examples differ in their data while reusing identical reconstruction code.
+
+\subsection{Calibrate once, iterate many times}
+\label{sec:pipeline:twophase}
+
+The objective \eqref{eq:st-listmode} and the MLEM update \eqref{eq:ml-em} read
+from four inputs: the event geometry (LOR endpoints), the multiplicative factor
+$\code{mult}=\nrm\odot\att$, the additive background
+$\code{contamination}=\sct+\rnd$, and the sensitivity image
+$\sensv=\Aadj(\code{mult})$. The decisive observation is that \emph{none of these
+depends on the activity estimate} $\xv_k$: they are fixed by the scanner and the
+object, not by the iterate. So they are computed once, before iterating, and
+reused at every step --- and across solvers and datasets, exactly as the OSEM
+example shares one $\sensv$ between MLEM and OSEM and between its sharp and
+smeared acts. Only the predicted counts $\pred_k$ are recomputed each iteration,
+through one forward projection of the current image.
+
+\subsection{The calibration phase}
+\label{sec:pipeline:calib}
+
+Calibration turns the geometry and the physical maps into the four inputs. The
+events are the listmode LOR endpoints --- read from the scanner for real data, or
+sampled on the cylinder for a simulation (Section~\ref{sec:geometry}).
+Attenuation comes from projecting the $\mu$-map, $\att=\exp(-\Aop\bm\mu)$
+(Section~\ref{sec:datamodel}); normalization $\nrm$ and the background
+$\sct+\rnd$ come from external calibration or models. The sensitivity image is
+then the back-projection of $\code{mult}$ over the geometric LORs, computed once:
+\begin{lstlisting}
+xs, xe = sample_lors(scanner, nlors; rng = rng)     # or: read from acquisition
+a      = exp.(-joseph3d_fwd(xs, xe, mumap, org, vs))     # attenuation a = exp(-A mu)
+mult   = n .* a                                          # n = 1 for the examples
+sens   = sensitivity_image(xs, xe, shape, org, vs; weights = mult)   # A^T(mult), once
+\end{lstlisting}
+In a simulation this phase also generates the data: project the (optionally
+blurred) activity, scale to the desired count level, and draw Poisson counts,
+\begin{lstlisting}
+ybar   = mult .* joseph3d_fwd(xs, xe, gaussian_blur(x_true, fwhm, vs), org, vs) .+ s_plus_r
+counts = [rand(rng, Poisson(c)) for c in ybar]
+\end{lstlisting}
+with $\Gop=\mathbf I$ (no blur) when resolution is switched off. For real data the
+counts are simply the recorded events, and everything downstream is identical.
+
+\subsection{The reconstruction phase}
+\label{sec:pipeline:recon}
+
+With the inputs prepared, reconstruction assembles the Poisson model and iterates.
+The model carries the events, counts, $\code{mult}$, $\code{contamination}$ and
+$\sensv$; MLEM (or OSEM, building subset models) runs from a positive image on the
+sensitivity support:
+\begin{lstlisting}
+model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
+                             counts = counts, mult = mult, contamination = s_plus_r)
+x0  = Float32.(sens .> 0)
+rec = mlem(model, x0; niter = niter)                       # or osem(subset_models(...), x0)
+\end{lstlisting}
+This is the whole reconstruction. The physics lives entirely in the prepared
+inputs; the solver is generic, which is why switching on attenuation, resolution,
+or a background changes only the calibration phase, never these lines.
+
+\subsection{Monitoring and stopping}
+\label{sec:pipeline:monitor}
+
+Two quantities track the run. The negative log-likelihood
+\code{neg\_log\_likelihood} must decrease monotonically under MLEM
+(Section~\ref{sec:mlem}); a non-decrease signals a bug or numerical trouble, so it
+is the basic sanity check, available on real data since it needs no truth. When a
+reference image \emph{is} known --- the truth or the recoverable $\Gop\xv$ in a
+simulation --- the error against it is the quality metric, and it is what reveals
+semi-convergence: it falls, reaches a minimum, and rises as noise is fitted
+(Section~\ref{sec:acceleration}). The iteration count is therefore not run to
+convergence but chosen by early stopping, a reconstruction parameter tuned per
+study. The worked examples instrument exactly these quantities --- monotone
+likelihood, error against the recoverable target, and the central-slice image ---
+and report them alongside each reconstruction.
