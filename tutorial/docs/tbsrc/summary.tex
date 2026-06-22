@@ -1,5 +1,80 @@
 % tbsrc/summary.tex — Summary and the Example Ladder
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). Recap of the Part I arc around the data-model
+% spine; the example-ladder table (physics rows) and the distinct solver axis;
+% forward pointer to the remaining backgrounds.
 \section{Summary and the Example Ladder}
 \label{sec:summary}
-\textit{(Section to be written.)}
+
+Part~I built one equation and the algorithm that inverts it. The mean counts on
+LOR $i$,
+\begin{equation}
+  \pred_i \;=\; n_i\,a_i\,\bigl(\Aop\,\Gop\,\xv\bigr)_i \;+\; s_i + r_i ,
+  \label{eq:sum-spine}
+\end{equation}
+is the spine that every section hangs from: the geometry and grid fix what $\Aop$
+means (Sections~\ref{sec:geometry}--\ref{sec:projection}), the resolution is
+$\Gop$ (Section~\ref{sec:resolution}), the physical effects are $n,a,s,r$
+(Section~\ref{sec:datamodel}), the Poisson statistics turn \eqref{eq:sum-spine}
+into the likelihood (Section~\ref{sec:statistics}), and MLEM/OSEM minimize the
+resulting objective (Sections~\ref{sec:mlem}--\ref{sec:acceleration}), assembled
+into the two-phase pipeline of Section~\ref{sec:pipeline}. The library mirrors the
+split: the multiplicative factors enter as $\code{mult}=\nrm\odot\att$, the
+additive backgrounds as $\code{contamination}=\sct+\rnd$, the resolution is
+injected at simulation time and left in the data, and the reconstruction needs
+only these plus the sensitivity image $\sensv=\Aadj(\code{mult})$.
+
+\subsection{The example ladder}
+\label{sec:summary:ladder}
+
+The worked examples (Part~II) switch the terms of \eqref{eq:sum-spine} on one at a
+time, each isolating a single effect against everything before it already
+working. Table~\ref{tab:ladder} is that ladder.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}llllll@{}}
+    \toprule
+    Example & $\Gop$ & $\att$ & $\rnd$ & $\sct$ & what it isolates \\
+    \midrule
+    Attenuation & $\mathbf I$ & water $\mu$-map & $0$ & $0$ & cupping and its correction \\
+    Resolution  & $5\,\mathrm{mm}$ & water & $0$ & $0$ & the blur $\Gop$, recovery of $\Gop\xv$ \\
+    $+$ Randoms & $5\,\mathrm{mm}$ & water & flat & $0$ & a smooth additive background \\
+    $+$ Scatter & $5\,\mathrm{mm}$ & water & flat & SSS/MC & object-dependent background \\
+    \bottomrule
+  \end{tabular}
+  \caption{The physics example ladder. Each row adds one term of
+    \eqref{eq:sum-spine} to the row above; normalization is $\nrm=\bm1$
+    throughout (the continuous detector's geometric sensitivity is already in
+    $\sensv$, Section~\ref{sec:datamodel}). The first two examples exist; randoms
+    and scatter follow.}
+  \label{tab:ladder}
+\end{table}
+
+The ladder is cumulative by design: because the reconstruction code is fixed
+(Section~\ref{sec:pipeline}), turning on a term changes only how the data are
+simulated, so each example's new effect is the \emph{only} thing that differs from
+its predecessor and its consequence is unambiguous.
+
+\subsection{A second axis: the solver}
+\label{sec:summary:solver}
+
+One worked example does not sit on this ladder. The acceleration example holds the
+physics fixed --- it reuses the resolution phantom and attenuation --- and varies
+the \emph{solver} instead, comparing MLEM with OSEM and exhibiting
+semi-convergence. This is a genuinely different axis: the ladder switches on terms
+of the forward model \eqref{eq:sum-spine}, while the solver study switches on
+properties of the inversion (subset acceleration, the limit cycle, early
+stopping). The two are orthogonal, which is exactly why the same generic
+reconstruction runs every row of the ladder and every solver in the study.
+
+\subsection{What follows}
+\label{sec:summary:next}
+
+The ladder's open rows are the additive backgrounds. Randoms add a smooth,
+activity-independent term estimated from a delayed window; scatter adds a broad,
+object-dependent term from an external single-scatter or Monte-Carlo model
+(Section~\ref{sec:datamodel}). Both enter through \code{contamination} without
+touching the reconstruction, completing the data model \eqref{eq:sum-spine} on
+real-scale data. With geometry, resolution, attenuation, statistics, and the
+solver in hand, those examples are the last step from the idealized forward model
+to a quantitative reconstruction~\cite{crysp2026}.
