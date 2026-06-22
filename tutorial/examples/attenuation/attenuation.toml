@@ -19,4 +19,4 @@ total_counts = 1.0e8     # total Poisson counts
 seed         = 1
 
 [recon]
-niter = 40               # MLEM iterations
+niter = 15

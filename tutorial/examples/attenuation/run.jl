@@ -83,6 +83,15 @@ relerr(u, v) = sqrt(sum(abs2, u .- v)) / sqrt(sum(abs2, v))
 println("rel. error inside sphere:  with AC = ", round(relerr(x_ac[inside], x_true_s[inside]); digits = 3),
         " | without AC = ", round(relerr(x_no[inside], x_true_s[inside]); digits = 3))
 
+# interior noise: coefficient of variation in the flat core (avoids the edge)
+core = falses(n)
+for k in 1:n[3], j in 1:n[2], i in 1:n[1]
+    xc[i]^2 + yc[j]^2 + zc[k]^2 <= (0.6f0 * Rsph)^2 && (core[i, j, k] = true)
+end
+cv(v) = (m = sum(v) / length(v); sqrt(sum(abs2, v .- m) / length(v)) / m)
+println("interior CV (noise, with AC):  ", round(cv(x_ac[core]); digits = 3),
+        " over ", niter, " iters")
+
 # --- dump central slice and profile for plotting -------------------------------
 kz = n[3] ÷ 2 + 1
 jy = n[2] ÷ 2 + 1
