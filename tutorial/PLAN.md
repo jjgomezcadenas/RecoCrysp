@@ -203,4 +203,11 @@ Open:
 - [x] resolution worked example: library phantoms.jl + psf.jl (gaussian_blur);
       code (tutorial/examples/resolution/) + tutorial_example_resolution.tex
       (Derenzo in water; AC + 3.5mm G; coarse rods resolve, fine merge)
+- [x] osem worked example (SOLVER axis, not physics ladder):
+      tutorial/examples/osem/ + tutorial_example_osem.tex. Two acts on the
+      Derenzo-in-water phantom — act 1 sharp = acceleration (MLEM vs OSEM
+      M=4/8/16, speed-ups 4/8/15.4x, limit-cycle floor worsens with M); act 2
+      smeared = semi-convergence/early stopping (error vs G·x dips at 26 updates,
+      climbs by 96). Key insight written into the doc: sharp data won't turn over
+      (always finer detail masks noise); band-limited G·x makes it inevitable.
 - [ ] further examples: + randoms, + scatter
