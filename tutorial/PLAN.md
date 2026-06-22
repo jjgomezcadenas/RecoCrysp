@@ -194,7 +194,9 @@ Open:
 - [x] §4 projection.tex (first draft; physics from the retired joseph3d_note)
 - [x] §5 resolution.tex (first draft; simulation-time Gaussian smear, no recon-side G)
 - [x] §6 datamodel.tex (first draft) — stage 2 complete
-- [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)
+- [x] §7 statistics.tex (Poisson NLL, sens term & listmode form, gradient)
+- [x] §8 mlem.tex (EM update, preconditioned-gradient form, sens dual role, properties)
+- [x] §9 acceleration.tex (OSEM + subset sens; semi-convergence + TikZ; early stop; MAP note) — stage 3 complete
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
 - [x] attenuation worked example: code (tutorial/examples/attenuation/) +
       tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
