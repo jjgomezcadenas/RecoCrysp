@@ -181,4 +181,6 @@ tutorial/
 - [x] §6 datamodel.tex (first draft) — stage 2 complete
 - [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
-- [ ] tutorial_example1.tex (after basis)
+- [x] attenuation worked example: code (tutorial/examples/attenuation/) +
+      tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
+- [ ] further examples: + resolution (G), + randoms, + scatter
