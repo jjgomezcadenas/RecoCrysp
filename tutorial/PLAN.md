@@ -197,7 +197,8 @@ Open:
 - [x] §7 statistics.tex (Poisson NLL, sens term & listmode form, gradient)
 - [x] §8 mlem.tex (EM update, preconditioned-gradient form, sens dual role, properties)
 - [x] §9 acceleration.tex (OSEM + subset sens; semi-convergence + TikZ; early stop; MAP note) — stage 3 complete
-- [ ] §10 pipeline, §11 summary, appendices (stage 4)
+- [x] §10 pipeline.tex (two-phase skeleton: calibrate once / iterate; monitoring + early stop)
+- [ ] §11 summary (example-ladder table), appendices (A: EM derivation; B: notation; C: API) — stage 4
 - [x] attenuation worked example: code (tutorial/examples/attenuation/) +
       tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
 - [x] resolution worked example: library phantoms.jl + psf.jl (gaussian_blur);
