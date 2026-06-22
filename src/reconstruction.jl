@@ -30,22 +30,46 @@
 # arithmetic is Float32; arrays must share one backend.
 
 """
-    sensitivity_image(xstart, xend, img_shape, img_origin, voxsize; weights = nothing)
+    sensitivity_image(xstart, xend, img_shape, img_origin, voxsize;
+                      weights = nothing, scale = 1)
 
-Sensitivity image `Aᵀ·w` — backprojection of the per-LOR weights `w` (default
-all ones) over the supplied LOR list. Pass all geometric LORs (and, for a real
-scanner, `weights =` the multiplicative normalization factors) to obtain the
-MLEM/OSEM preconditioner.
+Sensitivity image `scale · Aᵀ·w`: the backprojection of the per-LOR weights `w`
+(default all ones) over the supplied LORs, times `scale`. With `weights = n·a`
+(normalization × attenuation) it is the MLEM/OSEM preconditioner — the term
+`⟨sens, x⟩` that accounts for each voxel's detection probability.
+
+# What `scale` is for
+
+`Aᵀ·w` is a *bare sum* over the supplied LORs, so its magnitude is proportional
+to how many LORs you pass. The sensitivity must end up on the same per-LOR scale
+as the event list that drives the reconstruction; `scale` is what puts it there.
+Two cases:
+
+- **`sens` over the same LOR set as the events** (a discrete scanner/sinogram, or
+  a continuous scanner whose sampled LORs both define the acquisition and carry
+  the counts): keep `scale = 1`. Any per-LOR sampling noise in `sens` is then
+  shared with the data backprojection and cancels in the MLEM ratio.
+
+- **`sens` over an independent, denser LOR set** (true listmode: each event is
+  its own LOR, and `sens` approximates the continuum `Aᵀ(n·a)` from a separate
+  Monte-Carlo sample of `n_sens` LORs): pass `scale = n_events / n_sens`. Being
+  independent of the events, the sample's Monte-Carlo noise does *not* cancel —
+  it imprints on the image as a fixed `1/√n_sens` pattern, computed once — so a
+  larger `n_sens` directly lowers reconstruction noise.
 """
-function sensitivity_image(xstart, xend, img_shape, img_origin, voxsize; weights = nothing)
+function sensitivity_image(xstart, xend, img_shape, img_origin, voxsize;
+                           weights = nothing, scale = 1)
     if weights === nothing
         weights = similar(xstart, Float32, size(xstart, 2))
         fill!(weights, 1.0f0)
     end
-    return joseph3d_back(
+    img = joseph3d_back(
         xstart, xend, weights, img_shape,
         NTuple{3,Float32}(img_origin), NTuple{3,Float32}(voxsize),
     )
+    s = Float32(scale)
+    s == 1.0f0 || (img .*= s)
+    return img
 end
 
 """

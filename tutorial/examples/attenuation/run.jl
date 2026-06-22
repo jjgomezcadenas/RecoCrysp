@@ -57,6 +57,14 @@ counts = Float32[rand(rng, Poisson(Float64(l))) for l in lam]
 x_true_s = scale .* x_true                       # truth at the same count scale
 
 # --- reconstruction: with vs without attenuation correction --------------------
+# Sensitivity = A^T over the SAME LOR set as the events (scale = 1). Here the
+# sampled LORs ARE the acquisition geometry: we build the data by projecting the
+# phantom onto these LORs and binning Poisson counts onto them — a
+# propagation-based simulation — so the events and the sensitivity share the set
+# and their sampling noise cancels in the MLEM update. (A true Monte-Carlo
+# dataset would emit individual events on independent LORs; there the sensitivity
+# is a separate, denser A^T(a) sample passed with scale = n_events / n_sens.
+# See sensitivity_image.)
 niter = Int(cfg["recon"]["niter"])
 
 sens_ac = sensitivity_image(xs, xe, n, org, vs; weights = a)     # A^T(a)

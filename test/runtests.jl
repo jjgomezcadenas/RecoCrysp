@@ -206,6 +206,38 @@ end
         @test length(proj) == nlors && any(proj .> 0.0f0)
     end
 
+    @testset "continuous sensitivity normalization (scale)" begin
+        # sens = scale * A^T(w) must stay on the EVENT per-LOR scale: computed over
+        # a denser LOR set (n_sens) with scale = n_events/n_sens, its magnitude is
+        # unchanged in expectation but its Monte-Carlo noise is lower.
+        sc = ContinuousPET(diameter = 200.0, afov = 60.0)
+        ish = (31, 31, 11)
+        vs = (4.0f0, 4.0f0, 4.0f0)
+        org = ntuple(i -> -(ish[i] - 1) / 2 * vs[i], 3)
+
+        n_ev = 1_000_000
+        xs1, xe1 = sample_lors(sc, 250_000; rng = MersenneTwister(20))
+        xs2, xe2 = sample_lors(sc, 1_000_000; rng = MersenneTwister(21))
+        s1 = sensitivity_image(xs1, xe1, ish, org, vs; scale = n_ev / size(xs1, 2))
+        s2 = sensitivity_image(xs2, xe2, ish, org, vs; scale = n_ev / size(xs2, 2))
+
+        cx = Float32[org[1] + (i - 1) * vs[1] for i in 1:ish[1]]
+        cy = Float32[org[2] + (j - 1) * vs[2] for j in 1:ish[2]]
+        mask = falses(ish)
+        for k in 1:ish[3], j in 1:ish[2], i in 1:ish[1]
+            cx[i]^2 + cy[j]^2 <= 40.0f0^2 && (mask[i, j, k] = true)
+        end
+        mn(v) = sum(v) / length(v)
+        cv(v) = (m = mn(v); sqrt(sum(abs2, v .- m) / length(v)) / m)
+        m1, m2 = mn(s1[mask]), mn(s2[mask])
+        @test abs(m1 - m2) / m2 < 0.05           # same scale, independent of n_sens
+        @test cv(s2[mask]) < cv(s1[mask])        # denser sens is smoother
+
+        # default scale = 1 is unchanged (backward compatible)
+        @test sensitivity_image(xs1, xe1, ish, org, vs) ==
+              sensitivity_image(xs1, xe1, ish, org, vs; scale = 1)
+    end
+
     @testset "reconstruction (noise-free, CPU)" begin
         p = build_recon_problem(identity)
 
