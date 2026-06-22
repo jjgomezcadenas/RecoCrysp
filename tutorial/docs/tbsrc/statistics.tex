@@ -1,5 +1,119 @@
 % tbsrc/statistics.tex — Statistical Model and the Likelihood
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). Poisson counting; the Poisson log-likelihood;
+% the <sens,x> term and the listmode/sinogram equivalence; the negative-log-
+% likelihood objective and its gradient, matching src/reconstruction.jl.
 \section{Statistical Model and the Likelihood}
 \label{sec:statistics}
-\textit{(Section to be written.)}
+
+The data model \eqref{eq:dm-full} gives the \emph{mean} counts $\pred$ on each
+LOR. What an acquisition actually records is a random draw around that mean.
+Reconstruction is therefore not the inversion of a linear system --- there is no
+$\xv$ with $\Aop\xv$ equal to the noisy data --- but a statistical
+\emph{estimation}: find the image whose predicted means make the observed counts
+most probable. This section writes down the probability of the data given the
+image, turns it into an objective to minimize, and computes its gradient. The
+next section turns that gradient into the MLEM update.
+
+\subsection{Poisson counting}
+\label{sec:statistics:poisson}
+
+Annihilations occur independently at a rate fixed by the activity, and each
+detected coincidence is a rare event among enormously many photon histories.
+Counting such events over a fixed acquisition makes the number recorded on LOR
+$i$ a Poisson variable with mean $\pred_i$,
+\begin{equation}
+  y_i \sim \mathrm{Poisson}(\pred_i),
+  \qquad
+  P(y_i \mid \pred_i) = \frac{\pred_i^{\,y_i}\,e^{-\pred_i}}{y_i!},
+  \label{eq:st-poisson}
+\end{equation}
+and counts on distinct LORs are independent. Two consequences set the whole
+reconstruction strategy. First, the variance equals the mean, so a LOR with few
+expected counts is noisy in \emph{relative} terms --- the fractional uncertainty
+is $1/\sqrt{\pred_i}$ --- which is why low-count regions reconstruct poorly and
+why the estimator must respect counting statistics rather than treat every LOR
+equally. Second, because the LORs are independent, the probability of the whole
+dataset is the product over LORs, and a sum over LORs once we take logarithms.
+
+\subsection{The Poisson log-likelihood}
+\label{sec:statistics:loglik}
+
+The likelihood of the image is the probability of the observed counts as a
+function of $\xv$ (through $\pred=\pred(\xv)$). Multiplying \eqref{eq:st-poisson}
+over all LORs and taking the negative logarithm gives, dropping the
+$\log y_i!$ terms that do not depend on $\xv$,
+\begin{equation}
+  f(\xv) \;=\; \sum_i \Bigl[\,\pred_i - y_i \log \pred_i\,\Bigr],
+  \qquad
+  \pred_i = \code{mult}_i\,(\Aop\xv)_i + \code{contamination}_i .
+  \label{eq:st-nll}
+\end{equation}
+This $f$ is the negative Poisson log-likelihood; the maximum-likelihood image is
+its minimizer. It is convex in $\xv$ (the first term is linear, $-\log$ is
+convex, and $\pred$ is linear in $\xv$), so a single global minimum is sought ---
+the difficulty is not local minima but noise, treated in
+Section~\ref{sec:acceleration}.
+
+\subsection{The sensitivity term and the listmode form}
+\label{sec:statistics:listmode}
+
+The two sums in \eqref{eq:st-nll} are not summed over the same thing, and seeing
+why is what makes listmode reconstruction efficient. Take the first sum and
+substitute $\pred_i$, dropping the additive background (constant in $\xv$):
+\begin{equation}
+  \sum_i \pred_i \;=\; \sum_i \code{mult}_i\,(\Aop\xv)_i + \text{const}
+  \;=\; \inner{\code{mult}}{\Aop\xv} + \text{const}
+  \;=\; \inner{\Aadj(\code{mult})}{\xv} + \text{const}
+  \;=\; \inner{\sensv}{\xv} + \text{const},
+  \label{eq:st-sens}
+\end{equation}
+using the adjoint $\inner{\bm w}{\Aop\xv}=\inner{\Aadj\bm w}{\xv}$
+(Section~\ref{sec:projection}) and the sensitivity image
+$\sensv=\Aadj(\code{mult})$ of \eqref{eq:dm-pred}. This term runs over
+\emph{every geometric LOR the scanner can record}: it is the total detectability
+of the image, and it is precomputed once as the back-projection $\sensv$,
+independent of any counts.
+
+The second sum, $-\sum_i y_i \log \pred_i$, has a factor $y_i$ in every term, so
+only LORs with $y_i>0$ contribute --- the \emph{detected events}. This is the
+listmode economy: rather than predict and store a count for all $\sim\!10^{12}$
+possible LORs, evaluate the data term over the event list alone, while the
+all-LOR first term collapses into the single precomputed vector $\sensv$.
+Writing $\code{counts}$ for the per-event counts (one per raw event, or an
+integer multiplicity for compressed listmode), the objective becomes
+\begin{equation}
+  f(\xv) \;=\; \inner{\sensv}{\xv}
+            \;-\; \sum_{\text{events}} \code{counts}\,\log \pred ,
+  \qquad
+  \sensv=\Aadj(\code{mult}),
+  \label{eq:st-listmode}
+\end{equation}
+which is exactly \code{neg\_log\_likelihood} in \code{reconstruction.jl}. The
+sinogram and listmode likelihoods are the same function \eqref{eq:st-nll}
+rearranged: the sinogram form bins counts onto a fixed LOR grid and sums over
+bins; the listmode form sums over events and folds all undetected LORs into
+$\sensv$. They agree term by term, and the listmode form is the natural one for a
+continuous scanner whose events do not fall on any grid
+(Section~\ref{sec:geometry}).
+
+\subsection{The gradient}
+\label{sec:statistics:gradient}
+
+Minimizing $f$ needs its gradient. The first term in \eqref{eq:st-listmode} is
+linear, with $\nabla\inner{\sensv}{\xv}=\sensv$. For the data term, the chain
+rule through $\pred_i=\code{mult}_i(\Aop\xv)_i+\code{contamination}_i$ gives
+$\partial \pred_i/\partial x_j = \code{mult}_i\,A_{ij}$, so
+\begin{equation}
+  \nabla f(\xv) \;=\; \sensv \;-\; \Aadj\!\Bigl(\code{mult}\odot
+                     \frac{\code{counts}}{\pred}\Bigr),
+  \label{eq:st-grad}
+\end{equation}
+the back-projection of the per-LOR ratio $\code{mult}\odot\code{counts}/\pred$
+subtracted from the sensitivity --- the \code{\_gradient} routine, with the
+convention $0/0=0$ on unmeasured LORs. The structure is telling: at the minimum
+$\nabla f=0$ means $\Aadj(\code{mult}\odot\code{counts}/\pred)=\sensv$, i.e.\ the
+back-projected, prediction-weighted data balance the sensitivity everywhere. The
+gradient mixes a forward projection (to form $\pred$) and a back-projection (to
+spread the ratio into image space), the two Joseph operations the library
+provides. Section~\ref{sec:mlem} turns \eqref{eq:st-grad} into a multiplicative
+update that preserves non-negativity and needs no step-size tuning.
