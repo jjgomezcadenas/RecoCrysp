@@ -238,6 +238,57 @@ end
               sensitivity_image(xs1, xe1, ish, org, vs; scale = 1)
     end
 
+    @testset "phantoms" begin
+        n = (61, 61, 61)            # ±60 mm: large enough to contain the phantoms
+        vs = (2.0f0, 2.0f0, 2.0f0)
+        org = ntuple(i -> -(n[i] - 1) / 2 * vs[i], 3)
+        vvox = prod(vs)
+
+        sph = uniform_sphere(n, org, vs; radius = 40.0, value = 2.0)
+        @test all(v -> v == 0.0f0 || v == 2.0f0, sph)
+        @test isapprox(count(>(0), sph) * vvox, 4 / 3 * pi * 40.0^3; rtol = 0.05)
+
+        cyl = uniform_cylinder(n, org, vs; radius = 40.0, length = 30.0)
+        @test isapprox(count(>(0), cyl) * vvox, pi * 40.0^2 * 30.0; rtol = 0.05)
+
+        # derenzo rods: nonzero, valued, inside the cylinder and the axial extent
+        der = derenzo(n, org, vs; radius = 50.0, length = 30.0,
+                      rod_diameters = [4.0, 5.0, 6.0, 8.0, 10.0, 12.0], value = 1.0)
+        @test count(>(0), der) > 0
+        x = Float32[org[1] + (i - 1) * vs[1] for i in 1:n[1]]
+        y = Float32[org[2] + (i - 1) * vs[2] for i in 1:n[2]]
+        z = Float32[org[3] + (i - 1) * vs[3] for i in 1:n[3]]
+        inside = true
+        @inbounds for k in 1:n[3], j in 1:n[2], i in 1:n[1]
+            if der[i, j, k] > 0
+                (x[i]^2 + y[j]^2 <= 50.0^2 + 1 && abs(z[k]) <= 15.0 + 1.0e-3) || (inside = false)
+            end
+        end
+        @test inside
+    end
+
+    @testset "gaussian_blur (resolution operator G)" begin
+        n = (41, 41, 41)
+        vs = (1.5f0, 1.5f0, 1.5f0)
+        fwhm = 6.0
+        pt = zeros(Float32, n); pt[21, 21, 21] = 1.0f0
+        g = gaussian_blur(pt, fwhm, vs)
+        @test isapprox(sum(g), 1.0f0; atol = 1.0f-3)                    # counts preserved
+
+        # FWHM recovered from the central line (G of a delta is a Gaussian)
+        line = g[:, 21, 21]
+        xs = Float32[(i - 21) * vs[1] for i in 1:n[1]]
+        mu = sum(xs .* line) / sum(line)
+        sig = sqrt(sum(line .* (xs .- mu) .^ 2) / sum(line))
+        @test isapprox(2.3548f0 * sig, Float32(fwhm); rtol = 0.05)
+
+        # self-adjoint: <Gx, y> == <x, Gy>
+        rng = MersenneTwister(5)
+        a = rand(rng, Float32, n); b = rand(rng, Float32, n)
+        @test isapprox(sum(gaussian_blur(a, fwhm, vs) .* b),
+                       sum(a .* gaussian_blur(b, fwhm, vs)); rtol = 1.0f-4)
+    end
+
     @testset "reconstruction (noise-free, CPU)" begin
         p = build_recon_problem(identity)
 
