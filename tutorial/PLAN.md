@@ -160,21 +160,30 @@ Resolved during this build:
 - [x] Voxel size: per example (attenuation 4 mm; resolution 1 mm).
 - [x] Data/plot: NPZ dumps + matplotlib `*_plot.py` scripts (not HDF5/CairoMakie).
 
+**Backgrounds — code readiness (verified 2026-06-22):** the RECONSTRUCTION side
+already handles randoms+scatter. `ListmodePoissonModel.contamination` (defaults
+to zeros) enters `predicted = mult.*(A x) .+ contamination` and flows through
+`_gradient`, `neg_log_likelihood`, `em_update`; so `contamination = s + r` is all
+the reconstructor needs (documented §6/§10). MISSING is the SIMULATION side: no
+randoms/scatter generator exists in `src/`. Randoms → generate a flat/smooth term
+in the example's `run.jl` (no lib change). Scatter → needs a source (below).
+
 Open:
 - [ ] **+scatter example — where does scatter `s` come from?** Import from the MC
       package, an analytic single-scatter (SSS/Watson) model, or a simplified
-      parametric tail for teaching. Decide before building that example.
+      parametric tail for teaching. Multiple scatter = scale the SSS estimate or
+      MC. No generator in the repo yet; likely needs a small one. Decide before
+      building that example.
 
 ## 6b. Recommended resume order
 
-1. **Basis §7→§8→§9** first: the two example docs already cite "Iterative
-   Reconstruction (MLEM)" and "Acceleration and Noise" (§8, §9), which are still
-   stubs — writing them closes that reference gap, and the examples already
-   demonstrate the content (Poisson likelihood, MLEM, semi-convergence).
-2. **+randoms example** (additive flat/smooth `r` via `contamination`; quick, no
+Basis §1–§11 + Appendix A are **DONE** (drafted, build clean at 22 pp, pushed).
+Remaining work, in no forced order:
+1. **+randoms example** (additive flat/smooth `r` via `contamination`; quick, no
    new library code, no open decisions).
-3. **+scatter example** (after the scatter-source decision above).
-4. **§10 pipeline, §11 summary (example ladder), appendices** — wrap-up.
+2. **+scatter example** (after the scatter-source decision above).
+3. **Appendices B (notation glossary) + C (API quick reference)** — mechanical,
+   deferred by the user.
 
 ## 7. Library status (context anchor)
 
