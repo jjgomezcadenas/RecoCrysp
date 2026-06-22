@@ -1,0 +1,35 @@
+# OSEM example (tutorial) — MLEM vs ordered-subsets EM on ONE sharp dataset.
+# Same Derenzo-in-water phantom as the resolution example, sharp data (G = 1),
+# attenuation-corrected. Only the SOLVER changes. All parameters tunable here.
+
+[scanner]            # continuous (monolithic) CRYSP scanner
+diameter = 774.0     # mm
+afov     = 1024.0    # mm
+
+[grid]               # lighter than the resolution example (we compare solvers,
+n       = [121, 121, 71]   # not the finest rods); raise/lower to taste
+voxsize = 1.5        # mm, isotropic
+
+[derenzo]            # hot rods in 6 sectors, inside a water cylinder
+radius        = 80.0
+length        = 100.0
+rod_diameters = [4.0, 5.0, 6.0, 8.0, 10.0, 12.0]   # mm, one per sector
+spacing       = 2.0
+
+[phantom]
+mu_water = 0.0096    # mm^-1, water attenuation at 511 keV
+
+[resolution]
+fwhm = 5.0           # mm, detector point-spread for the second act (smeared data)
+
+[sim]                # sharp data (no resolution blur): G = 1
+n_lors       = 20000000
+total_counts = 1.5e7       # act 1: clean data, so MLEM and OSEM agree cleanly
+smeared_counts = 7.0e6     # act 2: fewer counts, so overfitting bites early and the
+                           #        error against G*x turns over visibly (early stopping)
+seed         = 1
+
+[recon]
+niter   = 96               # MLEM iterations (= image updates)
+subsets = [4, 8, 16]       # OSEM subset counts; niter must divide by each
+m_show  = 8                # which OSEM run to display next to MLEM

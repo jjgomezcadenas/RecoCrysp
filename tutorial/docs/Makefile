@@ -1,6 +1,6 @@
 # Build the RecoCrysp tutorial documents. Run pdflatex twice so the table of
 # contents and cross-references resolve.
-DOCS = tutorial_basis tutorial_example_attenuation tutorial_example_resolution
+DOCS = tutorial_basis tutorial_example_attenuation tutorial_example_resolution tutorial_example_osem
 
 all: $(addsuffix .pdf,$(DOCS))
 
