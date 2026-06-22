@@ -198,7 +198,9 @@ Open:
 - [x] §8 mlem.tex (EM update, preconditioned-gradient form, sens dual role, properties)
 - [x] §9 acceleration.tex (OSEM + subset sens; semi-convergence + TikZ; early stop; MAP note) — stage 3 complete
 - [x] §10 pipeline.tex (two-phase skeleton: calibrate once / iterate; monitoring + early stop)
-- [ ] §11 summary (example-ladder table), appendices (A: EM derivation; B: notation; C: API) — stage 4
+- [x] Appendix A: EM derivation (complete data → Q-function → multiplicative update;
+      Gibbs monotonicity) — closes the §8 forward reference
+- [ ] §11 summary (example-ladder table), appendices B (notation) + C (API) — stage 4
 - [x] attenuation worked example: code (tutorial/examples/attenuation/) +
       tutorial_example_attenuation.tex (G=1; cupping artifact + AC; early stop)
 - [x] resolution worked example: library phantoms.jl + psf.jl (gaussian_blur);
