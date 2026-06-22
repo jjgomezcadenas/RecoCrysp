@@ -78,7 +78,9 @@ tutorial/
    μ_water≈0.0096 mm⁻¹ @511keV; non-TOF ⇒ single factor per LOR. Normalization n
    (efficiencies), multiplicative. Scatter (single+multiple) & randoms: additive,
    estimated EXTERNALLY (SSS/Watson, MC); library accepts via contamination.
-   Map to library fields: **mult = n·a, contamination = s + r**.
+   Map to library fields: **mult = n·a, contamination = s + r**; recon predicts
+   with plain A (G stays in data), sens = Aᵀ(mult). For monolithic, n≈1 (no
+   crystals; geometric sensitivity already in Aᵀ𝟙). **[WRITTEN — first draft]**
 7. `statistics.tex` — Poisson counting; Poisson log-likelihood; listmode vs
    sinogram likelihood & equivalence (the ⟨sens,x⟩ term); negative-log-likelihood
    objective f(x) = ⟨sens,x⟩ − Σ counts·log(pred); gradient sens − Aᵀ(n·counts/pred).
@@ -176,7 +178,7 @@ tutorial/
 - [x] §3 grid.tex (first draft) — stage 1 complete
 - [x] §4 projection.tex (first draft; physics from the retired joseph3d_note)
 - [x] §5 resolution.tex (first draft; simulation-time Gaussian smear, no recon-side G)
-- [ ] §6 datamodel (stage 2)
+- [x] §6 datamodel.tex (first draft) — stage 2 complete
 - [ ] §7 statistics, §8 mlem, §9 acceleration (stage 3)
 - [ ] §10 pipeline, §11 summary, appendices (stage 4)
 - [ ] tutorial_example1.tex (after basis)

@@ -1,5 +1,115 @@
 % tbsrc/datamodel.tex — Physical Effects: The Complete Data Model
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). Attenuation, normalization, scatter, randoms;
+% all CORRECTED in reconstruction (unlike resolution); mapping to the library
+% fields mult = n.a and contamination = s + r.
 \section{Physical Effects: The Complete Data Model}
 \label{sec:datamodel}
-\textit{(Section to be written.)}
+
+Sections~\ref{sec:projection} and~\ref{sec:resolution} built the ideal forward
+operator $\Aop\,\Gop$: geometry and resolution. Real data carry more. The medium
+\emph{attenuates} the photons, detectors have unequal \emph{efficiencies}, and
+\emph{background} coincidences (scatter and randoms) are added. Collecting these,
+the mean number of counts on LOR $i$ is the full model previewed in
+\eqref{eq:intro-full},
+\begin{equation}
+  \pred_i \;=\; n_i\,a_i\,\bigl(\Aop\,\Gop\,\xv\bigr)_i \;+\; s_i + r_i ,
+  \label{eq:dm-full}
+\end{equation}
+with two multiplicative factors ($n_i,a_i$) scaling the true coincidences and two
+additive backgrounds ($s_i,r_i$) on top. The essential contrast with
+Section~\ref{sec:resolution}: where the resolution $\Gop$ is left in the data and
+not undone, all four terms here are \emph{corrected} --- they are placed in the
+reconstruction model so that the estimate is quantitatively accurate. This
+section defines each effect and maps it onto the two per-LOR vectors the library
+exposes.
+
+\subsection{Attenuation}
+\label{sec:datamodel:attenuation}
+
+A $511\,\mathrm{keV}$ photon may Compton-scatter or be absorbed before leaving
+the body, and a coincidence is lost unless \emph{both} photons escape. The
+survival probability on LOR $i$ is
+\begin{equation}
+  a_i \;=\; \exp\!\Bigl(-\!\int_{\mathrm{LOR}_i}\!\mu\,\mathrm{d}\ell\Bigr),
+  \label{eq:dm-atten}
+\end{equation}
+with $\mu$ the linear attenuation coefficient at $511\,\mathrm{keV}$
+($\mu_{\mathrm{water}}\approx0.0096\,\mathrm{mm}^{-1}$). A key non-TOF point: the
+integral spans the \emph{whole} line, so $a_i$ is a single factor per LOR,
+independent of where along it the annihilation occurred. It is computed by
+projecting the attenuation map (the $\mu$-map) with the very same forward
+projector and exponentiating,
+\begin{equation}
+  \att \;=\; \exp\!\bigl(-\Aop\,\bm{\mu}\bigr).
+  \label{eq:dm-atten-proj}
+\end{equation}
+Attenuation is multiplicative; correcting for it means carrying $\att$ in the
+model, where it also enters the sensitivity image (Section~\ref{sec:mlem}).
+
+\subsection{Normalization}
+\label{sec:datamodel:norm}
+
+Detectors are not uniformly efficient. The per-LOR normalization $\nrm$ collects
+the remaining multiplicative, count-rate-independent efficiency --- intrinsic
+detector efficiency and geometric (solid-angle) factors --- and combines with
+attenuation into the single multiplicative factor $\nrm\odot\att$.
+
+For the continuous detector of Section~\ref{sec:geometry} two things make $\nrm$
+unusually mild. The geometric, solid-angle part is \emph{already} captured by the
+sensitivity image $\Aadj(\bm 1)$ over all geometric LORs --- the centre of the
+field of view is crossed by more LORs than the edges --- so it need not be put
+into $\nrm$. And a monolithic block read by a network has no crystal-to-crystal
+efficiency variation, so $\nrm\approx\bm1$ is a reasonable model. It occupies the
+same multiplicative slot as $\att$ nonetheless, and the examples keep
+$\nrm=\bm1$.
+
+\subsection{Scatter and randoms}
+\label{sec:datamodel:background}
+
+Two backgrounds add counts not described by $\nrm\,\att\,(\Aop\Gop\xv)$:
+\begin{itemize}
+  \item \emph{Randoms} $\rnd$: accidental coincidences between photons from two
+        \emph{different} annihilations that happen to fall in the timing window.
+        They are uncorrelated with the activity, smooth and slowly varying, and
+        their rate grows with the singles rates; in practice they are estimated
+        from a delayed coincidence window.
+  \item \emph{Scatter} $\sct$: true coincidences in which one or both photons
+        Compton-scattered in the body, so the assigned LOR is mispositioned. The
+        distribution is broad and smooth and depends on \emph{both} the activity
+        and the attenuating medium (the object generates its own scatter). Single
+        scatter is estimated by the single-scatter simulation~\cite{watson2000};
+        multiple scatter by scaling it or by Monte Carlo.
+\end{itemize}
+Both are additive, and --- importantly --- neither is computed by the
+reconstruction. They come from external models (or a full Monte-Carlo
+simulation), and only the estimate $\sct+\rnd$ enters here. This is a deliberate
+boundary: the library accepts a precomputed background rather than modelling the
+physics of scatter.
+
+\subsection{Mapping to the library}
+\label{sec:datamodel:library}
+
+The full model \eqref{eq:dm-full} collapses onto two per-LOR vectors. The
+multiplicative factors become \code{mult}, the additive backgrounds become
+\code{contamination},
+\begin{equation}
+  \code{mult} = \nrm\odot\att ,
+  \qquad
+  \code{contamination} = \sct + \rnd .
+  \label{eq:dm-map}
+\end{equation}
+The reconstruction predicts counts with the \emph{plain} projector --- the
+resolution $\Gop$ stays in the data, not the model (Section~\ref{sec:resolution}) ---
+so that
+\begin{equation}
+  \pred \;=\; \code{mult}\odot(\Aop\,\xv) \;+\; \code{contamination} ,
+  \qquad
+  \sensv \;=\; \Aadj(\code{mult}) = \Aadj(\nrm\odot\att) ,
+  \label{eq:dm-pred}
+\end{equation}
+the sensitivity image $\sensv$ being the quantity the Poisson reconstruction of
+Sections~\ref{sec:statistics}--\ref{sec:mlem} needs. With \code{mult} and
+\code{contamination} supplied, every effect above is handled by code that already
+exists. Each example switches on a subset: the first turns on attenuation alone
+--- a water $\mu$-map giving $\att$ from \eqref{eq:dm-atten-proj}, with
+$\nrm=\bm1$ and $\sct=\rnd=\bm0$.
