@@ -1,5 +1,119 @@
 % tbsrc/mlem.tex — Iterative Reconstruction: MLEM
-% Status: STUB — to be written (see ../../PLAN.md for the planned content).
+% Status: written (first draft). EM motivation -> multiplicative update; MLEM as
+% a preconditioned gradient step x - (x/sens) grad f (the form RecoCrysp uses);
+% the dual role of the sensitivity image; non-negativity, monotonicity, support.
 \section{Iterative Reconstruction: MLEM}
 \label{sec:mlem}
-\textit{(Section to be written.)}
+
+Section~\ref{sec:statistics} reduced reconstruction to minimizing the convex
+objective $f$ of \eqref{eq:st-listmode}. A plain gradient descent on $f$ would
+need a step size and could step $\xv$ negative, neither of which suits an
+activity image. The Maximum-Likelihood Expectation-Maximization (MLEM) algorithm
+of Shepp and Vardi~\cite{shepp1982}, extended to the present model by Lange and
+Carson~\cite{lange1984}, avoids both: a parameter-free multiplicative update that
+keeps $\xv\ge\bm0$ automatically and decreases $f$ at every step. This section
+states the update, shows it is the preconditioned gradient step the library
+implements, and reads off its properties.
+
+\subsection{The EM update}
+\label{sec:mlem:em}
+
+EM treats reconstruction as a missing-data problem. The counts $\code{counts}$
+are observed, but \emph{which voxel} each detected coincidence originated from is
+not. If those voxel-of-origin assignments were known, the maximum-likelihood
+activity would just be their tally divided by detectability --- a trivial
+estimate. EM iterates that idea: given the current image, the E-step computes the
+\emph{expected} contribution of each voxel to each LOR's counts; the M-step
+re-estimates the image from those expectations. Carried through (Appendix~A), the
+two steps collapse into one multiplicative update,
+\begin{equation}
+  \xv_{k+1} \;=\; \frac{\xv_k}{\sensv}\;\odot\;
+                  \Aadj\!\Bigl(\code{mult}\odot\frac{\code{counts}}{\pred_k}\Bigr),
+  \qquad
+  \pred_k = \code{mult}\odot(\Aop\xv_k) + \code{contamination},
+  \label{eq:ml-em}
+\end{equation}
+with $\odot$ and the division taken elementwise and
+$\sensv=\Aadj(\code{mult})$. Each iteration is one forward projection (to form
+the prediction $\pred_k$), one ratio, and one back-projection --- the two Joseph
+operations of Section~\ref{sec:projection}, nothing more. The correction factor
+$\Aadj(\code{mult}\odot\code{counts}/\pred_k)$ compares measured to predicted
+counts and back-projects the mismatch: where the model under-predicts, the ratio
+exceeds one and the voxel is scaled up; at the fixed point every ratio averages
+to one and the image stops changing.
+
+\subsection{MLEM as a preconditioned gradient step}
+\label{sec:mlem:precond}
+
+The library does not code \eqref{eq:ml-em} as written; it codes the equivalent
+\emph{preconditioned gradient} form, which exposes what the update is doing.
+Using the gradient $\nabla f = \sensv - \Aadj(\code{mult}\odot\code{counts}/\pred)$
+from \eqref{eq:st-grad}, scale it by the diagonal preconditioner
+$\bm D_k=\diag(\xv_k/\sensv)$ and take one descent step of unit length:
+\begin{equation}
+  \xv_{k+1} \;=\; \xv_k \;-\; \frac{\xv_k}{\sensv}\odot\nabla f(\xv_k)
+            \;=\; \xv_k - \frac{\xv_k}{\sensv}\odot\Bigl(\sensv -
+                  \Aadj(\tfrac{\code{mult}\,\code{counts}}{\pred_k})\Bigr)
+            \;=\; \frac{\xv_k}{\sensv}\odot\Aadj\!\Bigl(
+                  \frac{\code{mult}\,\code{counts}}{\pred_k}\Bigr).
+  \label{eq:ml-precond}
+\end{equation}
+The $\sensv$ in the first parenthesis cancels the $\xv_k/\sensv$ scaling, leaving
+exactly \eqref{eq:ml-em}: \emph{the multiplicative MLEM update is gradient descent
+with step size one and the diagonal preconditioner $\xv_k/\sensv$}. This is
+\code{em\_update} in \code{reconstruction.jl} --- written subtractively as
+$\xv_k-(\xv_k/\sensv)\odot\nabla f$ --- and it explains the absence of a step
+size: the preconditioner sets the scale of every voxel's step, large where the
+image is bright and detectability low, small where it is dim or well-sampled.
+
+\subsection{The sensitivity image, twice over}
+\label{sec:mlem:sens}
+
+The sensitivity image $\sensv=\Aadj(\code{mult})=\Aadj(\nrm\odot\att)$ does two
+jobs in \eqref{eq:ml-precond}, and conflating them is a common source of
+confusion. As the \emph{normalizer} it is the gradient's first term ---
+$\inner{\sensv}{\xv}$ in the objective --- accounting for each voxel's total
+detection probability, so that a voxel seen by few LORs is not mistaken for one
+with little activity. As the \emph{preconditioner} it is the $1/\sensv$ scaling
+of the step. Both call for the same vector, the back-projection of the
+multiplicative factors over \emph{all} geometric LORs, computed once by
+\code{sensitivity\_image} before iterating (Section~\ref{sec:datamodel}). Because
+it is decoupled from the event list, the data term in \eqref{eq:ml-em} projects
+only over events while $\sensv$ carries the all-LOR normalization --- the listmode
+economy of Section~\ref{sec:statistics} made concrete.
+
+\subsection{Properties}
+\label{sec:mlem:properties}
+
+Four properties follow from the multiplicative form, and they are why MLEM is the
+default.
+
+\begin{itemize}
+  \item \emph{Non-negativity.} Started from a positive image, every factor in
+        \eqref{eq:ml-em} is non-negative, so $\xv_k\ge\bm0$ for all $k$ with no
+        projection step --- the constraint is built in. The library writes the
+        update subtractively for speed and clamps at zero
+        (\code{max.(..., 0)}), since Float32 cancellation in
+        \eqref{eq:ml-precond} can leave rounding-level negatives.
+  \item \emph{Monotonicity.} EM guarantees the likelihood never worsens:
+        $f(\xv_{k+1})\le f(\xv_k)$ at every iteration~\cite{lange1984}, so
+        \code{neg\_log\_likelihood} decreases monotonically --- a direct
+        convergence check, with no tuned step size to destabilize it.
+  \item \emph{Support preservation.} A voxel that reaches zero stays zero: the
+        multiplicative update cannot resurrect it. Voxels outside the field of
+        view have $\sensv=0$ and are left untouched (the preconditioner masks
+        them), so the reconstruction lives on the support the geometry actually
+        sees.
+  \item \emph{Fixed point.} At convergence $\nabla f=\bm0$, i.e.\
+        $\Aadj(\code{mult}\odot\code{counts}/\pred)=\sensv$: the
+        prediction-weighted back-projected data balance the sensitivity
+        everywhere. This is the maximum-likelihood image for the model
+        \eqref{eq:dm-full}.
+\end{itemize}
+
+\noindent
+Monotone convergence to the maximum-likelihood image is not the same as
+convergence to a \emph{good} image: with noisy data the ML solution is itself
+noisy, and MLEM approaches it through a useful intermediate before degrading.
+That behaviour --- semi-convergence --- and the ordered-subsets acceleration that
+makes the iterations affordable are the subject of Section~\ref{sec:acceleration}.
