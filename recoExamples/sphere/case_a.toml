@@ -1,0 +1,30 @@
+# Case (a): uniform sphere in VACUUM, low activity — the pure-chain test.
+# Reconstruct the true coincidences with the library's analytic geometric
+# sensitivity and nothing else; the sphere should come back FLAT, validating the
+# normalization (n=1) and the geometry match on real MC data.
+#
+# NOTE: the vacuum dataset does not exist yet. `lors` currently points at the
+# water sphere so the pipeline can be smoke-tested end to end (it will show a
+# cupped sphere from un-corrected attenuation, NOT the flat case-(a) result).
+# Switch `lors` to the vacuum file once generated.
+
+[data]
+lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_water_csi/lors_det.h5"
+
+[scanner]                 # from geometry/geometry_sphere.json (cyl_shell)
+sample_radius_mm = 405.5  # mid-crystal (r_inner 387 + half of 37 mm wall); DOI choice for sens
+afov_mm          = 1024.0 # 2 * half_length 512 mm
+
+[phantom]
+radius_mm = 80.0          # sphere R = 8 cm at the origin
+
+[grid]                    # covers the sphere (+ margin), not the whole AFOV
+n       = [73, 73, 73]
+voxsize = 2.5             # mm, isotropic -> extent +-90 mm
+
+[sens]                    # independent geometric LORs for the sensitivity image
+n_sample_lors = 20000000
+seed          = 1
+
+[recon]
+niter = 40

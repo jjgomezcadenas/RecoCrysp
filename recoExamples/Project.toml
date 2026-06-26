@@ -1,0 +1,21 @@
+name = "RecoExamples"
+uuid = "b2a7e3d4-1c6f-4e8a-9d2b-7f3c5a9e1d04"
+version = "0.1.0"
+authors = ["J.J. Gomez-Cadenas <jjgomezcadenas@gmail.com>"]
+
+[deps]
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+RecoCrysp = "459fffc9-7bfd-4b8d-a09a-85e7d0824c03"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+Test = "1.11.0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
