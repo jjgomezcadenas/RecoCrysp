@@ -56,8 +56,49 @@ end
     end
 end
 
+@testset "randoms estimator" begin
+    n_phi = 4
+    @test elem_id(0, 0, n_phi) == 1
+    @test elem_id(1, 3, n_phi) == 8                 # 1*4 + 3 + 1
+
+    # singles_element_counts on a tiny fixture: iz/iphi -> element histogram
+    mktempdir() do dir
+        sp = joinpath(dir, "singles.h5")
+        h5open(sp, "w") do f
+            f["iz"]   = Int16[0, 0, 1]
+            f["iphi"] = Int16[0, 0, 3]
+        end
+        S = singles_element_counts(sp; n_phi = 4, n_z = 2)
+        @test length(S) == 8
+        @test S[elem_id(0, 0, 4)] == 2.0
+        @test S[elem_id(1, 3, 4)] == 1.0
+        @test sum(S) == 3.0
+    end
+
+    # randoms_estimate: hand-computed r = 2τ S_i S_j (then scaled)
+    S = Float64[10, 20, 0, 5, 0, 0, 8, 0]
+    elem1 = Int16[0 1; 0 2]                          # (iz,iphi) of the 2 events: ids 1, 7
+    elem2 = Int16[0 0; 1 3]                          # ids 2, 4
+    # base = 2*3*[10*20, 8*5] = [1200, 240]
+    rT = randoms_estimate(S, elem1, elem2; n_phi = 4, tau_ns = 3.0, T_ns = 6.0)
+    @test rT ≈ Float32[200.0, 40.0]                 # base / T
+    rC = randoms_estimate(S, elem1, elem2; n_phi = 4, tau_ns = 3.0, total = 700.0)
+    @test sum(rC) ≈ 700.0f0                          # calibrated total
+    @test rC[1] / rC[2] ≈ 1200 / 240
+end
+
 # Optional: if the real water file is present, sanity-check the class fractions.
 const WATER = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/lors_det.h5")
+const SINGLES = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/singles.h5")
+if isfile(SINGLES)
+    @testset "randoms estimator — real singles file" begin
+        nrows = h5open(SINGLES, "r") do f; length(read(f["iz"])); end
+        S = singles_element_counts(SINGLES; n_phi = 48, n_z = 20)
+        @test length(S) == 960                      # 48 phi * 20 z
+        @test sum(S) == nrows                       # every single binned exactly once
+        @test all(S .>= 0)
+    end
+end
 if isfile(WATER)
     @testset "MC listmode reader — real water file" begin
         c = read_coincidences(WATER)
