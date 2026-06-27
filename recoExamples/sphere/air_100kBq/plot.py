@@ -7,14 +7,14 @@ the water smoke-test it cups toward the centre. Right: the radial profile of the
 normalized reconstruction, which should sit at 1.0 inside the sphere if the
 normalization is correct.
 
-  python3 case_a_plot.py
+  python3 plot.py
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "case_a_results.npz"))
+d = np.load(os.path.join(HERE, "results.npz"))
 ext = float(d["extent"])
 R = float(d["radius_mm"])
 extent = [-ext, ext, -ext, ext]
@@ -40,6 +40,6 @@ axp.set_ylim(0, 1.4)
 axp.grid(alpha=0.3)
 
 fig.tight_layout()
-out = os.path.join(HERE, "case_a_result.png")
+out = os.path.join(HERE, "result.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

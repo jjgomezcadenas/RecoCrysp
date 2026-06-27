@@ -5,9 +5,9 @@
 # analytic/MC geometry match. The reconstruction code is the generic listmode
 # MLEM; only the data and the sensitivity come from the MC side.
 #
-#   julia -t auto --project=recoExamples recoExamples/sphere/run_case_a.jl
+#   julia -t auto --project=recoExamples recoExamples/sphere/air_100kBq/run.jl
 #
-# Writes case_a_results.npz next to this file (read by case_a_plot.py).
+# Writes results.npz next to this file (read by plot.py).
 
 using RecoExamples
 using RecoCrysp
@@ -15,7 +15,7 @@ using Random
 using NPZ
 import TOML
 
-cfg  = TOML.parsefile(joinpath(@__DIR__, "case_a.toml"))
+cfg  = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
 lors = cfg["data"]["lors"]
 isfile(lors) || error("listmode file not found:\n  $lors\n" *
                       "Generate the vacuum sphere first (case (a) needs vacuum/air).")
@@ -102,7 +102,7 @@ radii = Float32[(b - 0.5) * vs[1] for b in 1:nb]
 
 # --- dump central slices + the radial profile -----------------------------------
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "case_a_results.npz"), Dict(
+npzwrite(joinpath(@__DIR__, "results.npz"), Dict(
     "slice_true"  => x_true[:, :, kz],
     "slice_rec"   => recn[:, :, kz],
     "slice_rec_xz" => recn[:, n[2] ÷ 2 + 1, :],
@@ -111,4 +111,4 @@ npzwrite(joinpath(@__DIR__, "case_a_results.npz"), Dict(
     "radius_mm"   => R,
     "extent"      => Float32((n[1] - 1) / 2 * vs[1]),
 ))
-println("wrote case_a_results.npz")
+println("wrote results.npz")

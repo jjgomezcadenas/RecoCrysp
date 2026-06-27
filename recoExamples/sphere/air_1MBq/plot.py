@@ -5,14 +5,14 @@ radial profiles of the three, and the uncorrected-minus-corrected difference
 (the randoms background, on a magnified scale). At low randoms fractions the
 three are nearly identical -- the correction is validated, the effect is small.
 
-  python3 case_b_plot.py
+  python3 plot.py
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "case_b_results.npz"))
+d = np.load(os.path.join(HERE, "results.npz"))
 R = float(d["radius_mm"])
 ext = float(d["extent"])
 extent = [-ext, ext, -ext, ext]
@@ -50,6 +50,6 @@ axd.set_title("uncorrected - corrected  (×20)")
 axd.set_xlabel("x (mm)"); axd.set_ylabel("y (mm)")
 fig.colorbar(im, ax=axd, fraction=0.046)
 
-out = os.path.join(HERE, "case_b_result.png")
+out = os.path.join(HERE, "result.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

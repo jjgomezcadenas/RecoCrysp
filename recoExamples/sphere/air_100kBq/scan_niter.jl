@@ -1,7 +1,7 @@
 # Case (a) diagnostic: does the central radial gradient fill in with iterations
 # (under-convergence, normalization fine) or stick (a real sensitivity bias)?
 # One load + one sensitivity, then MLEM to 40 snapshotting the normalized radial
-# profile at 10/20/40 iterations. Reuses case_a.toml (grid/geometry/backend/data).
+# profile at 10/20/40 iterations. Reuses config.toml (grid/geometry/backend/data).
 #
 #   julia -t auto --project=recoExamples recoExamples/sphere/scan_niter.jl
 #
@@ -13,7 +13,7 @@ using Random
 using NPZ
 import TOML
 
-cfg = TOML.parsefile(joinpath(@__DIR__, "case_a.toml"))
+cfg = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
 const BACKEND = lowercase(get(get(cfg, "backend", Dict()), "device", "cpu"))
 if BACKEND == "metal"
     @eval using Metal

@@ -6,8 +6,8 @@
 # estimate r_e = 2τ S_i S_j is built from the singles and calibrated so its total
 # equals the number of flagged random coincidences.
 #
-#   julia -t auto --project=recoExamples recoExamples/sphere/run_case_b.jl
-# Writes case_b_results.npz (read by case_b_plot.py).
+#   julia -t auto --project=recoExamples recoExamples/sphere/air_1MBq/run.jl
+# Writes results.npz (read by plot.py).
 
 using RecoExamples
 using RecoCrysp
@@ -15,7 +15,7 @@ using Random
 using NPZ
 import TOML
 
-cfg = TOML.parsefile(joinpath(@__DIR__, "case_b.toml"))
+cfg = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
 to_dev = lowercase(get(get(cfg, "backend", Dict()), "device", "cpu")) == "metal" ?
          (@eval using Metal; x -> MtlArray(x)) : identity
 
@@ -78,7 +78,7 @@ function profile(img)
 end
 
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "case_b_results.npz"), Dict(
+npzwrite(joinpath(@__DIR__, "results.npz"), Dict(
     "radii" => radii, "radius_mm" => R,
     "prof_gold" => Float32.(profile(rec_gold)),
     "prof_uncorr" => Float32.(profile(rec_uncorr)),
@@ -86,4 +86,4 @@ npzwrite(joinpath(@__DIR__, "case_b_results.npz"), Dict(
     "slice_gold" => rec_gold[:, :, kz],
     "slice_uncorr" => rec_uncorr[:, :, kz], "slice_corr" => rec_corr[:, :, kz],
     "extent" => Float32((n[1] - 1) / 2 * vs[1])))
-println("wrote case_b_results.npz")
+println("wrote results.npz")
