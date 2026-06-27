@@ -41,21 +41,22 @@ function _gauss_kernel(sigma)
     return k ./ sum(k)
 end
 
-# Separable Gaussian smoothing of a 3D array (reflect at the borders).
-function _smooth3(A, sigma)
-    k = _gauss_kernel(sigma)
-    length(k) == 1 && return A
-    r = (length(k) - 1) ÷ 2
+# Separable Gaussian smoothing of a 3D array (clamp at borders). `sigmas` is the
+# per-axis width in bins; an axis with sigma <= 0 is left UNSMOOTHED -- used to
+# preserve a genuinely sharp physical edge along that axis (here s_r at s_r = R).
+function _smooth3(A, sigmas)
     sz = size(A)
     B = copy(A)
     for d in 1:3
-        C = similar(B)
-        n = sz[d]
+        sigmas[d] <= 0 && continue
+        k = _gauss_kernel(sigmas[d])
+        length(k) == 1 && continue
+        r = (length(k) - 1) ÷ 2
+        C = similar(B); n = sz[d]
         for I in CartesianIndices(B)
-            acc = 0.0
-            base = I[d]
+            acc = 0.0; base = I[d]
             for (m, w) in enumerate(k)
-                j = clamp(base + (m - 1 - r), 1, n)      # reflect/clamp at edges
+                j = clamp(base + (m - 1 - r), 1, n)
                 Jt = ntuple(t -> t == d ? j : I[t], 3)
                 acc += w * B[CartesianIndex(Jt)]
             end
@@ -68,22 +69,12 @@ end
 
 _binidx(v, lo, hi, n) = clamp(floor(Int, (v - lo) / (hi - lo) * n) + 1, 1, n)
 
-"""
-    scatter_estimate(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz, smooth, total=nothing)
-        -> Vector{Float32}
-
-Per-event scatter background `s_i` for the prompt LORs whose sinogram coordinates
-are `s_r,z_m,dz` (length N), `scat_mask` flagging which of them are scatter. Both
-the scatter subset and all prompts are histogrammed on an `n_sr×n_zm×n_dz` grid
-spanning the data range, Gaussian-smoothed (`smooth`, in bins), and `s_i` is the
-smoothed local scatter fraction `S~/P~` at each event's bin. If `total` is given
-(e.g. the flagged scatter count) the result is rescaled to sum to it.
-"""
-function scatter_estimate(s_r, z_m, dz, scat_mask;
-                          n_sr, n_zm, n_dz, smooth, total = nothing)
-    lo_r, hi_r = extrema(s_r); lo_z, hi_z = extrema(z_m); lo_d, hi_d = extrema(dz)
-    hi_r = hi_r > lo_r ? hi_r : lo_r + 1; hi_z = hi_z > lo_z ? hi_z : lo_z + 1
-    hi_d = hi_d > lo_d ? hi_d : lo_d + 1
+# Histogram the scatter subset and all prompts on the sinogram grid over the given
+# per-axis `(lo,hi)` spans (out-of-range events clamp into the edge bins -- the far
+# tails are nearly empty). Shared by scatter_estimate and scatter_sinograms so they
+# always bin identically.
+function _sino_hist(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz, span_sr, span_zm, span_dz)
+    lo_r, hi_r = span_sr; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
     S = zeros(Float64, n_sr, n_zm, n_dz); P = zeros(Float64, n_sr, n_zm, n_dz)
     @inbounds for i in eachindex(s_r)
         bi = _binidx(s_r[i], lo_r, hi_r, n_sr)
@@ -92,7 +83,28 @@ function scatter_estimate(s_r, z_m, dz, scat_mask;
         P[bi, bj, bk] += 1
         scat_mask[i] && (S[bi, bj, bk] += 1)
     end
+    return S, P, span_sr, span_zm, span_dz
+end
+
+"""
+    scatter_estimate(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+                     span_sr, span_zm, span_dz, smooth, total=nothing) -> Vector{Float32}
+
+Per-event scatter background `s_i` for the prompt LORs whose sinogram coordinates
+are `s_r,z_m,dz` (length N), `scat_mask` flagging which of them are scatter. Both
+the scatter subset and all prompts are histogrammed on an `n_sr×n_zm×n_dz` grid
+over the per-axis `(lo,hi)` spans, smoothed with the per-axis widths `smooth`
+(3-tuple, in bins; an axis with 0 is left sharp -- use 0 for `s_r` to keep the
+scatter edge at `s_r=R`), and `s_i` is the smoothed local scatter fraction `S~/P~`
+at each event's bin. If `total` is given the result is rescaled to sum to it.
+"""
+function scatter_estimate(s_r, z_m, dz, scat_mask;
+                          n_sr, n_zm, n_dz, span_sr, span_zm, span_dz,
+                          smooth, total = nothing)
+    S, P = _sino_hist(s_r, z_m, dz, scat_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
+                      span_sr = span_sr, span_zm = span_zm, span_dz = span_dz)
     S = _smooth3(S, smooth); P = _smooth3(P, smooth)
+    lo_r, hi_r = span_sr; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
     s = Vector{Float32}(undef, length(s_r))
     @inbounds for i in eachindex(s_r)
         bi = _binidx(s_r[i], lo_r, hi_r, n_sr)
@@ -104,4 +116,21 @@ function scatter_estimate(s_r, z_m, dz, scat_mask;
         sm = sum(s); sm > 0 && (s .*= Float32(total / sm))
     end
     return s
+end
+
+"""
+    scatter_sinograms(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+                      span_sr, span_zm, span_dz, smooth)
+        -> (S, P, S_smooth, P_smooth, span_sr, span_zm, span_dz)
+
+The scatter and prompt sinogram histograms (3D, `n_sr×n_zm×n_dz`) and their
+smoothed versions, plus each axis span. Same binning/smoothing as
+[`scatter_estimate`](@ref); the local scatter fraction the model applies is
+`S_smooth ./ P_smooth`. For inspecting the scatter model.
+"""
+function scatter_sinograms(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+                           span_sr, span_zm, span_dz, smooth)
+    S, P = _sino_hist(s_r, z_m, dz, scat_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
+                      span_sr = span_sr, span_zm = span_zm, span_dz = span_dz)
+    return S, P, _smooth3(S, smooth), _smooth3(P, smooth), span_sr, span_zm, span_dz
 end

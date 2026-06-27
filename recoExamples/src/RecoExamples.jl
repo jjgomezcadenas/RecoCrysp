@@ -19,6 +19,6 @@ export MCCoincidences, read_coincidences, endpoints,
 export elem_id, singles_element_counts, randoms_estimate
 export emission_sens_lors, surface_doi_lors, ideal_sphere_lors
 export sphere_chord, attenuation_factors
-export lor_sinogram_coords, scatter_estimate
+export lor_sinogram_coords, scatter_estimate, scatter_sinograms
 
 end # module

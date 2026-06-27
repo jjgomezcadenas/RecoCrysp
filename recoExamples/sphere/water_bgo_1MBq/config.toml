@@ -28,10 +28,15 @@ seed          = 1
 niter = 10
 
 [scatter]                  # smoothed scatter model in sinogram coords (run_att_scatter.jl)
-n_sr   = 32                # radial-offset bins
-n_zm   = 32                # axial-midpoint bins
-n_dz   = 16                # obliquity bins
-smooth = 1.5               # Gaussian smoothing width, in bins
+n_sr      = 40             # radial-offset bins (over [0, sr_max_mm])
+n_zm      = 40             # axial-midpoint bins (over [-zm_max_mm, zm_max_mm])
+n_dz      = 16             # obliquity bins     (over [-dz_max_mm, dz_max_mm])
+sr_max_mm = 180.0          # cap ranges where the sinogram is empty (better bin coverage)
+zm_max_mm = 180.0
+dz_max_mm = 400.0
+smooth_sr = 0.0            # keep the sharp scatter-fraction edge at s_r=R (no radial smoothing)
+smooth_zm = 1.5            # denoise the smooth axes only
+smooth_dz = 1.0
 
 [backend]
 device = "metal"

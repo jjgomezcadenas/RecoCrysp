@@ -48,9 +48,14 @@ a_nr = attenuation_factors(xs_nr, xe_nr; R = R, mu = mu_mm)
 
 # scatter model: smoothed local scatter fraction in sinogram coords, summing to n_scat
 s_r, z_m, dz = lor_sinogram_coords(xs_nr, xe_nr)
+sg = cfg["scatter"]
 s_est = scatter_estimate(s_r, z_m, dz, scat_in_nr;
-                         n_sr = Int(cfg["scatter"]["n_sr"]), n_zm = Int(cfg["scatter"]["n_zm"]),
-                         n_dz = Int(cfg["scatter"]["n_dz"]), smooth = Float64(cfg["scatter"]["smooth"]),
+                         n_sr = Int(sg["n_sr"]), n_zm = Int(sg["n_zm"]), n_dz = Int(sg["n_dz"]),
+                         span_sr = (0.0f0, Float32(sg["sr_max_mm"])),
+                         span_zm = (-Float32(sg["zm_max_mm"]), Float32(sg["zm_max_mm"])),
+                         span_dz = (-Float32(sg["dz_max_mm"]), Float32(sg["dz_max_mm"])),
+                         smooth = (Float64(sg["smooth_sr"]), Float64(sg["smooth_zm"]),
+                                   Float64(sg["smooth_dz"])),
                          total = Float64(n_scat))
 println("scatter model: sum = $(round(sum(s_est); digits=0)) (target $n_scat), " *
         "mean/event = $(round(sum(s_est)/length(s_est); sigdigits=3))"); flush(stdout)
