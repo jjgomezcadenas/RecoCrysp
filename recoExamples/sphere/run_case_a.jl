@@ -20,12 +20,29 @@ lors = cfg["data"]["lors"]
 isfile(lors) || error("listmode file not found:\n  $lors\n" *
                       "Generate the vacuum sphere first (case (a) needs vacuum/air).")
 
+# --- backend: cpu or metal. The reader stays CPU-side; only the endpoint and
+# sensitivity arrays move to the device, and the (backend-agnostic) projectors
+# dispatch on the array type. `to_dev` moves an array; `sync_dev` blocks for
+# honest per-iteration GPU timing (a no-op on CPU).
+const BACKEND = lowercase(get(get(cfg, "backend", Dict()), "device", "cpu"))
+if BACKEND == "metal"
+    @eval using Metal
+    to_dev(x)  = MtlArray(x)
+    sync_dev() = Metal.synchronize()
+else
+    to_dev(x)  = x
+    sync_dev() = nothing
+end
+println("backend = ", BACKEND); flush(stdout)
+
 # --- load and select the true coincidences (vacuum has no scatter; drop randoms)
+t0 = time()
 c = read_coincidences(lors)
 mask   = is_true(c)
-xs, xe = endpoints(c, mask)
+xs, xe = to_dev.(endpoints(c, mask))
 nev    = size(xs, 2)
-println("loaded $(length(c)) coincidences; using $nev true for reconstruction")
+println("loaded $(length(c)) coincidences; using $nev true ",
+        "($(round(time() - t0; digits = 1)) s)"); flush(stdout)
 
 # --- grid centred on the sphere -------------------------------------------------
 vs  = ntuple(_ -> Float32(cfg["grid"]["voxsize"]), 3)
@@ -37,16 +54,30 @@ x_true = uniform_sphere(n, org, vs; radius = R, value = 1.0)
 # --- analytic geometric sensitivity over INDEPENDENT sampled LORs ---------------
 # vacuum: weights = 1 (n = 1, a = 1). The event and sensitivity LOR sets differ,
 # so rescale the sensitivity to the event count (the decoupled `scale` path).
+t0 = time()
 sc = ContinuousPET(diameter = 2 * Float32(cfg["scanner"]["sample_radius_mm"]),
                    afov = Float32(cfg["scanner"]["afov_mm"]))
 nsens    = Int(cfg["sens"]["n_sample_lors"])
-gxs, gxe = sample_lors(sc, nsens; rng = MersenneTwister(Int(cfg["sens"]["seed"])))
+gxs, gxe = to_dev.(sample_lors(sc, nsens; rng = MersenneTwister(Int(cfg["sens"]["seed"]))))
 sens     = sensitivity_image(gxs, gxe, n, org, vs; scale = nev / nsens)
+sync_dev()
 x0       = Float32.(sens .> 0)
+println("sensitivity built over $nsens LORs ($(round(time() - t0; digits = 1)) s)"); flush(stdout)
 
 # --- reconstruct (generic listmode MLEM; counts = 1, mult = 1) ------------------
+# per-iteration timing so the run's progress is visible (and gives the per-iter
+# cost for the CPU-vs-Metal comparison); sync_dev makes GPU timing honest.
+tprev = Ref(time())
+function progress(k, x)
+    sync_dev()
+    now = time()
+    println("  iter $k   $(round(now - tprev[]; digits = 2)) s"); flush(stdout)
+    tprev[] = now
+end
 model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs)
-rec   = mlem(model, x0; niter = Int(cfg["recon"]["niter"]))
+tmlem = time()
+rec   = Array(mlem(model, x0; niter = Int(cfg["recon"]["niter"]), callback = progress))
+println("MLEM done ($(round(time() - tmlem; digits = 1)) s)"); flush(stdout)
 
 # --- flatness diagnostic: normalized mean activity vs radius inside the sphere --
 cx = Float32[org[1] + (i - 1) * vs[1] for i in 1:n[1]]

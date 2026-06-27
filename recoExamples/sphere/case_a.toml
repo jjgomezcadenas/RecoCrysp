@@ -3,13 +3,8 @@
 # sensitivity and nothing else; the sphere should come back FLAT, validating the
 # normalization (n=1) and the geometry match on real MC data.
 #
-# NOTE: the vacuum dataset does not exist yet. `lors` currently points at the
-# water sphere so the pipeline can be smoke-tested end to end (it will show a
-# cupped sphere from un-corrected attenuation, NOT the flat case-(a) result).
-# Switch `lors` to the vacuum file once generated.
-
 [data]
-lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_water_csi/lors_det.h5"
+lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo/lors_det.h5"
 
 [scanner]                 # from geometry/geometry_sphere.json (cyl_shell)
 sample_radius_mm = 405.5  # mid-crystal (r_inner 387 + half of 37 mm wall); DOI choice for sens
@@ -19,12 +14,24 @@ afov_mm          = 1024.0 # 2 * half_length 512 mm
 radius_mm = 80.0          # sphere R = 8 cm at the origin
 
 [grid]                    # covers the sphere (+ margin), not the whole AFOV
-n       = [73, 73, 73]
-voxsize = 2.5             # mm, isotropic -> extent +-90 mm
+n       = [45, 45, 45]
+voxsize = 4.0             # mm, isotropic -> extent +-88 mm (uniform sphere: no fine
+                          #    detail to resolve, so a coarse grid lowers per-voxel noise)
 
 [sens]                    # independent geometric LORs for the sensitivity image
 n_sample_lors = 20000000
 seed          = 1
 
+[norm]                    # emission-based sensitivity (DOI + emission measure)
+r_inner_mm    = 387.0     # crystal inner radius
+wall_mm       = 37.0      # crystal thickness (DOI shell 387 -> 424 mm)
+att_length_mm = 10.4      # BGO absorption length at 511 keV
+fov_radius_mm = 88.0      # emission region (covers the grid)
+
 [recon]
-niter = 40
+niter = 10
+
+[backend]                 # device for the projector/MLEM compute
+device = "metal"            # "cpu" or "metal" (Apple GPU); the same run, one knob.
+                          # The reader stays CPU-side; only the endpoint/sensitivity
+                          # arrays move to the device. Default cpu so it runs anywhere.
