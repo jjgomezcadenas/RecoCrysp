@@ -13,5 +13,6 @@ tutorial/docs/tbsrc/*.aux
 # example outputs (regenerable by run.jl / *_plot.py)
 tutorial/examples/*/*_results.npz
 tutorial/examples/*/*_result.png
+# MC example outputs: the .npz data is heavy and regenerable (ignored); the .png
+# figures are committed in place (each scenario dir owns its plots, used by sphere/doc).
 recoExamples/**/*.npz
-recoExamples/**/*.png

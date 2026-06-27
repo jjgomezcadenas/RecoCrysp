@@ -13,7 +13,7 @@ using Random
 using NPZ
 import TOML
 
-cfg = TOML.parsefile(joinpath(@__DIR__, "config.toml"))
+cfg = TOML.parsefile(joinpath(@__DIR__, "..", "config.toml"))
 const BACKEND = lowercase(get(get(cfg, "backend", Dict()), "device", "cpu"))
 if BACKEND == "metal"
     @eval using Metal
