@@ -1,0 +1,247 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+% Figures live in each scenario directory (each owns its plots); pull them from there.
+\graphicspath{%
+  {../air_bgo_100kBq/}%
+  {../air_bgo_1MBq/}%
+  {../air_bgo_10MBq/}%
+  {../water_bgo_1MBq/}%
+}
+
+\newcommand{\sr}{s_{r}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Reconstructing PTCRYSP Monte-Carlo Data on a Uniform Sphere:\\
+       Normalization, Randoms, Attenuation, and Scatter}
+\author{RecoCrysp --- MC reconstruction studies (Part III)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reconstruct Monte-Carlo listmode coincidence data from the PTCRYSP simulation
+of the CRYSP scanner, using the \code{RecoCrysp} listmode Poisson MLEM. A uniform
+sphere phantom is the test object throughout. Because every coincidence carries a
+ground-truth class flag (true / scatter / random) and a per-gamma scatter count,
+we can build and \emph{validate} each correction --- normalization, randoms,
+attenuation, scatter --- against the truth. The recurring lesson is that a uniform,
+centred sphere is spatially degenerate with any smooth additive background, so the
+randoms and scatter corrections, though demonstrably correct, are nearly invisible
+on this phantom; attenuation, being multiplicative and radially structured, is the
+one effect the sphere displays dramatically. The natural next step is a contrast
+phantom.
+\end{abstract}
+
+\section{Setup and method}
+
+\paragraph{Data.} PTCRYSP writes one row per coincidence (\code{lors\_det.h5}):
+the two detector endpoints, the emission origin, the energy, the detector element
+indices, and --- crucially --- a truth flag $\in\{0,1,2\}$ (true/scatter/random)
+and the per-gamma Compton-scatter counts $n_{\text{scat}1},n_{\text{scat}2}$. Single
+versus multiple scatter is $n_{\text{scat}1}+n_{\text{scat}2}=1$ versus $\ge 2$. A
+reader (\code{RecoExamples}) parses the schema directly into endpoint matrices and
+boolean class masks; \code{tools/lors\_summary.py} prints the class breakdown of any
+dataset and is the standing first step on each new file.
+
+\paragraph{Scanner and phantom.} The CRYSP scanner is a continuous, monolithic BGO
+cylinder: inner radius $387$\,mm, wall $37$\,mm, half-length $512$\,mm (axial FOV
+$1024$\,mm), read out as $48\,\varphi\times 20\,z = 960$ elements. The phantom is a
+uniform $R=80$\,mm sphere of $^{18}$F at the origin, simulated in vacuum (air) or
+water.
+
+\paragraph{Model.} The expected counts on LOR $i$ are
+\begin{equation}
+  \bar y_i \;=\; n_i\,a_i\,(A\,x)_i \;+\; s_i \;+\; r_i,
+  \label{eq:model}
+\end{equation}
+with $n$ the normalization, $a$ the attenuation survival, $A$ the (Joseph) forward
+projector, $x$ the activity image, and $s,r$ the scatter and randoms backgrounds.
+In the listmode Poisson MLEM each event is its own LOR; the multiplicative factor
+$\text{mult}=n\,a$ enters the forward model and the additive $\text{contamination}=s+r$
+enters as background:
+\begin{equation}
+  x \leftarrow \frac{x}{\text{sens}}\;A^{\!\top}\!\!\left(\frac{\text{mult}\cdot\text{counts}}{\text{mult}\,(Ax)+\text{contam}}\right),
+  \qquad
+  \text{sens}=A^{\!\top}(\text{mult}).
+  \label{eq:mlem}
+\end{equation}
+The sensitivity is source-free: at the MLEM fixed point the source cancels in the
+data ratio, so $\text{sens}$ must enumerate the detectable LORs once. We sample them
+on the scanner surface and put the bare back-projection on the per-event scale with
+$\text{scale}=n_{\text{events}}/n_{\text{sens}}$. All kernels run unchanged on CPU
+or Apple Metal (the latter $\sim\!40\times$ faster per iteration here).
+
+\section{Normalization (air, $n=1$)}
+
+For a continuous monolithic crystal there is no per-crystal efficiency variation,
+so the library's analytic geometric sensitivity $A^{\!\top}(1)$ \emph{is} the
+normalization: $n\equiv 1$, provided the analytic scanner geometry matches the
+simulated one. Reconstructing the vacuum sphere with $n=1$ and no contamination
+yields a flat interior (Fig.~\ref{fig:norm}): the per-voxel coefficient of
+variation is $\approx 0.29$ (Poisson noise), on top of a gentle $\pm 8\%$ radial
+tilt (centre low, rim high).
+
+That $\pm 8\%$ tilt is \emph{not} detector efficiency. Feeding the pipeline ideal,
+efficiency-free events (isotropic emission, geometry only) reproduces the same
+ratio, so the tilt is a LOR-sampling \emph{measure} mismatch --- surface-endpoint-pair
+sampling versus the emission-detection measure of the real LORs --- not a physical
+efficiency that would need an MC normalization scan. We carry it as a fixed baseline.
+(The normalization diagnostics that establish this live in
+\code{air\_bgo\_100kBq/diagnostics/}.)
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{air_bgo_100kBq}
+  \caption{Normalization on the vacuum sphere. Left: the true uniform sphere
+  (central slice). Middle: the $n=1$ MLEM reconstruction (same slice), flat to
+  within noise. Right: the radial profile, sitting at $1.0$ inside the sphere up to
+  the $\pm 8\%$ measure tilt.}
+  \label{fig:norm}
+\end{figure}
+
+\section{Randoms (air, activity series)}
+
+Randoms scale with \emph{activity}, not event count. Three vacuum datasets at the
+same statistics but $100$\,kBq, $1$\,MBq, and $10$\,MBq (over $1000$, $100$, and
+$10$\,s) give random fractions of $0.03\%$, $0.94\%$, and $8.72\%$ --- linear in
+activity, as expected ($r_{ij}=2\tau\,S_i S_j/T$). The randoms estimate is built
+from the singles rates $S$, evaluated per event and calibrated so its sum equals
+the flagged random total (it matches exactly).
+
+The three-way comparison (trues-only gold / uncorrected / singles-corrected) was
+run and the machinery validated, but even at $8.7\%$ the corrected and uncorrected
+reconstructions of the uniform sphere differ by under a percent in the interior:
+the randoms form a smooth, near-uniform pedestal that is degenerate with the sphere
+and is divided out by the interior-mean normalization. The only clean signature is a
+faint outside-sphere halo. We therefore report randoms in words and show no figure;
+a real randoms demonstration needs a contrast phantom. (The drivers remain under
+\code{air\_bgo\_1MBq/} and \code{air\_bgo\_10MBq/}; their figures await regenerated
+\code{singles.h5}.)
+
+\section{Attenuation (water, trues + AC)}
+
+Water introduces real attenuation. For a uniform sphere the survival factor of a
+LOR is analytic --- it depends only on the chord $\ell$ the line cuts through the
+sphere, not on where the annihilation occurred:
+\begin{equation}
+  a_i = \exp(-\mu\,\ell_i), \qquad \mu_{\text{water}}(511\,\text{keV}) = 0.096~\text{cm}^{-1}.
+\end{equation}
+We reconstruct the \emph{true} coincidences (scatter removed by the flag, so the
+narrow-beam $\mu$ is exactly the value to correct with) twice: without correction
+($\text{mult}=1$) and with ($\text{mult}=a$, $\text{sens}=A^{\!\top}(a)$).
+
+Without correction the image cups severely (Fig.~\ref{fig:att}): the reconstructed
+centre/edge ratio is $0.26$, just above the line-integral prediction
+$\exp(-\mu\,2R)=0.215$ (the small excess is finite-resolution smearing), and the rim
+is $\sim\!2.9\times$ the centre. The correction inverts it, recovering the centre by
+$\sim\!4.6\times$ to a centre/edge of $0.80$ --- the residual being the same measure
+tilt seen in vacuum. Attenuation, unlike the additive backgrounds, is multiplicative
+and radially structured, so the sphere displays it fully.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{water_bgo_1MBq_att_only}
+  \caption{Attenuation correction on the water sphere (true coincidences). Left:
+  no correction --- the textbook radial cupping. Middle: attenuation-corrected.
+  Right: radial profiles; the correction removes the cupping, leaving the vacuum
+  measure tilt.}
+  \label{fig:att}
+\end{figure}
+
+\section{Scatter (water)}
+
+Scatter is the dominant contamination here: $17.2\%$ of coincidences ($15.8\%$
+single, $1.4\%$ multiple). It enters as the additive $s$ in Eq.~\eqref{eq:model}.
+Having the flags, we build a \emph{smooth} scatter model from the flagged scatter
+events (as a single-scatter simulation would), rather than subtracting individual
+events. Each LOR is reduced to sinogram coordinates --- radial offset $\sr$, axial
+midpoint $z_m$, obliquity $\Delta z$ --- and the per-event background is the smoothed
+local scatter fraction $s_i = \tilde S_{b(i)}/\tilde P_{b(i)}$ (smoothed scatter
+counts over smoothed prompt counts in the bin), which sums to the scatter total by
+construction.
+
+\paragraph{Inspect the model before trusting it.} The scatter fraction in $\sr$ has
+a genuinely sharp physical edge at $\sr=R$: inside the sphere it is $\approx 0.13$,
+and beyond $R$ --- where no true LOR can land --- it must approach $1$
+(Fig.~\ref{fig:sino}). Our first Gaussian smoothing blurred this step (the halo
+fraction came out $0.56$ instead of $\sim\!1$), and an auto-ranged $\sr$ axis wasted
+resolution on the empty far field. Capping the ranges for finer bins and smoothing
+only $z_m,\Delta z$ (leaving $\sr$ sharp) restores a halo fraction of $0.997$. The
+lesson: smoothing must respect the real edges of the distribution.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{water_bgo_1MBq_sinogram}
+  \caption{Scatter-model sinograms. The prompt counts $P$ are confined to the
+  sphere footprint ($\sr\le R$); the scatter $S$ spreads well beyond. Bottom-right:
+  the scatter fraction versus $\sr$ has a sharp step at $\sr=R$ (dotted line) that
+  the edge-preserving smoothing keeps intact.}
+  \label{fig:sino}
+\end{figure}
+
+\paragraph{Result.} With the corrected model the scatter correction is sound and its
+action is physical, but structured rather than uniform (Fig.~\ref{fig:scat}, and the
+zoned diagnosis \code{att\_scatter\_zones.py}): essentially no change in the
+degenerate core; a small positive ring just inside the rim, where the correction
+restores edge contrast the scatter had filled in; and strong removal in the
+pure-scatter far halo ($-78\%$) and corners ($-95\%$). The global profile distance to
+the gold standard improves from $0.072$ to $0.060$. As with randoms, the interior
+degeneracy plus interior-mean normalization keep the \emph{visible} change small ---
+the three radial profiles nearly overlap --- even though the correction is doing
+exactly the right thing.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{water_bgo_1MBq_att_scatter}
+  \caption{Scatter correction on the water sphere, all attenuation-corrected. Top:
+  gold (trues only), uncorrected (trues+scatter), scatter-corrected slices. Bottom:
+  radial profiles; the uncorrected$-$corrected difference map (robust scale, dotted
+  circle $=R$) showing the edge ring and far-halo removal; and the difference from
+  gold versus radius.}
+  \label{fig:scat}
+\end{figure}
+
+\section{Synthesis}
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    Effect & Character & On the uniform sphere & Validated \\
+    \midrule
+    Normalization & geometric, $n=1$    & flat to $\pm 8\%$ (measure tilt) & yes \\
+    Randoms       & smooth additive     & degenerate, invisible            & yes (words) \\
+    Attenuation   & multiplicative      & strong cupping, fully corrected  & yes \\
+    Scatter       & smooth additive     & degenerate; structured residual  & yes \\
+    \bottomrule
+  \end{tabular}
+  \caption{The four corrections on the uniform sphere. The additive backgrounds
+  (randoms, scatter) are validated but nearly invisible; the multiplicative,
+  radially structured attenuation is the one the sphere displays.}
+  \label{tab:summary}
+\end{table}
+
+Across all four studies the through-line is the same (Table~\ref{tab:summary}): a
+uniform, centred sphere is spatially degenerate with smooth additive backgrounds,
+and normalizing radial profiles to the interior mean removes whatever residual
+survives. The corrections are correct --- the estimates calibrate exactly to the
+flagged totals, and the structured, physical action is visible in absolute,
+un-normalized terms --- but the phantom cannot \emph{show} them. Attenuation is the
+exception precisely because it is multiplicative and radially structured.
+
+The clear next step is a \textbf{contrast phantom} (a cylinder with hot and cold
+regions, then a NEMA image-quality phantom), where scatter fills cold regions and
+randoms lift contrast, so the corrections produce a visible, quantifiable
+improvement. Two smaller side-studies remain self-contained: relaxing the energy
+window on the water dataset (which would raise the $0.13$ interior scatter fraction),
+and settling which LOR measure is the correct one for the $\pm 8\%$ normalization
+tilt.
+
+\end{document}
