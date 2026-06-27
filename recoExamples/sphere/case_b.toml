@@ -1,0 +1,34 @@
+# Case (b): uniform sphere in VACUUM, high activity (1 MBq) — randoms kick in.
+# Reconstruct all prompts (trues+randoms; vacuum, no scatter) without and with
+# randoms correction, against the trues-only gold standard. Same scanner/grid as
+# case (a); the only new ingredient is the randoms estimate (singles-based).
+
+[data]
+lors    = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo_1MBq/lors_det.h5"
+singles = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo_1MBq/singles.h5"
+
+[scanner]
+sample_radius_mm = 405.5
+afov_mm          = 1024.0
+n_phi            = 48
+n_z              = 20
+
+[phantom]
+radius_mm = 80.0
+
+[grid]                    # extend a bit past the sphere to see the randoms background
+n       = [51, 51, 51]
+voxsize = 4.0             # -> extent +-100 mm
+
+[sens]
+n_sample_lors = 20000000
+seed          = 1
+
+[recon]
+niter = 10
+
+[randoms]
+tau_ns = 3.0              # coincidence window; estimate scale calibrated to the flagged random count
+
+[backend]
+device = "metal"
