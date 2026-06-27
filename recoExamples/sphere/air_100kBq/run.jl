@@ -7,7 +7,7 @@
 #
 #   julia -t auto --project=recoExamples recoExamples/sphere/air_100kBq/run.jl
 #
-# Writes results.npz next to this file (read by plot.py).
+# Writes air_100kBq.npz next to this file (read by plot.py).
 
 using RecoExamples
 using RecoCrysp
@@ -102,7 +102,7 @@ radii = Float32[(b - 0.5) * vs[1] for b in 1:nb]
 
 # --- dump central slices + the radial profile -----------------------------------
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "results.npz"), Dict(
+npzwrite(joinpath(@__DIR__, "air_100kBq.npz"), Dict(
     "slice_true"  => x_true[:, :, kz],
     "slice_rec"   => recn[:, :, kz],
     "slice_rec_xz" => recn[:, n[2] ÷ 2 + 1, :],
@@ -111,4 +111,4 @@ npzwrite(joinpath(@__DIR__, "results.npz"), Dict(
     "radius_mm"   => R,
     "extent"      => Float32((n[1] - 1) / 2 * vs[1]),
 ))
-println("wrote results.npz")
+println("wrote air_100kBq.npz")

@@ -1,13 +1,17 @@
-# Case (b): randoms. Reconstruct the high-activity vacuum sphere three ways:
+# Randoms (high end): reconstruct the 10 MBq vacuum sphere three ways:
 #   gold    : true coincidences only (truth==0), no contamination
 #   uncorr  : all prompts (trues+randoms), no correction  -> biased
 #   corr    : all prompts, contamination = singles-based randoms estimate
-# Vacuum, so mult = 1 and the only physics is the randoms background. The randoms
-# estimate r_e = 2τ S_i S_j is built from the singles and calibrated so its total
-# equals the number of flagged random coincidences.
+# Same setup as air_1MBq, but here randoms are ~8.7% of prompts (10x the 1 MBq
+# run) -- the high end of the randoms-scaling series, where any bias should be
+# largest. Whether that bias is actually visible on a centered uniform sphere is
+# the open question this three-way comparison measures (plot.py prints the
+# numbers). Vacuum, so mult = 1 and the only physics is the randoms background.
+# The estimate r_e = 2tau S_i S_j is built from the singles and calibrated so its
+# total equals the number of flagged random coincidences.
 #
-#   julia -t auto --project=recoExamples recoExamples/sphere/air_1MBq/run.jl
-# Writes air_1MBq.npz (read by plot.py).
+#   julia -t auto --project=recoExamples recoExamples/sphere/air_10MBq/run.jl
+# Writes air_10MBq.npz (read by plot.py).
 
 using RecoExamples
 using RecoCrysp
@@ -78,7 +82,7 @@ function profile(img)
 end
 
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "air_1MBq.npz"), Dict(
+npzwrite(joinpath(@__DIR__, "air_10MBq.npz"), Dict(
     "radii" => radii, "radius_mm" => R,
     "prof_gold" => Float32.(profile(rec_gold)),
     "prof_uncorr" => Float32.(profile(rec_uncorr)),
@@ -86,4 +90,4 @@ npzwrite(joinpath(@__DIR__, "air_1MBq.npz"), Dict(
     "slice_gold" => rec_gold[:, :, kz],
     "slice_uncorr" => rec_uncorr[:, :, kz], "slice_corr" => rec_corr[:, :, kz],
     "extent" => Float32((n[1] - 1) / 2 * vs[1])))
-println("wrote air_1MBq.npz")
+println("wrote air_10MBq.npz")
