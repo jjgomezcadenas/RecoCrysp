@@ -1,7 +1,7 @@
-# Water, attenuation-only study (run_att_only.jl). Uniform water sphere, 1 MBq,
-# BGO ring (geometry matched to the air runs). Reconstruct TRUE coincidences with
-# and without attenuation correction; a_i = exp(-mu * chord) through the sphere.
-# Scatter (~17%) and randoms (~1%) are left for run_att_scatter.jl.
+# Water, uniform sphere, 1 MBq, BGO ring (geometry matched to the air runs).
+# Shared by two studies: run_att_only.jl (attenuation correction on trues;
+# a_i = exp(-mu*chord) through the sphere) and run_att_scatter.jl (adds the
+# scatter background, ~17%, as the contamination term; randoms ~1% dropped).
 
 [data]
 lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_water_bgo_1MBq/lors_det.h5"
@@ -26,6 +26,12 @@ seed          = 1
 
 [recon]
 niter = 10
+
+[scatter]                  # smoothed scatter model in sinogram coords (run_att_scatter.jl)
+n_sr   = 32                # radial-offset bins
+n_zm   = 32                # axial-midpoint bins
+n_dz   = 16                # obliquity bins
+smooth = 1.5               # Gaussian smoothing width, in bins
 
 [backend]
 device = "metal"
