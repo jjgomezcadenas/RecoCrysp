@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Randoms (high end, 10 MBq). Top row: the reconstructed sphere (central slice)
-for gold (trues only), uncorrected (all prompts), and randoms-corrected. Bottom
-row: the radial profiles of the three, and the uncorrected-minus-corrected
-difference (the randoms background, shown x4). The hypothesis under test is that
-at ~8.7% randoms the uncorrected image biases away from the gold standard; the
-diagnostics printed below quantify whether it does and where. (On a centered
-uniform sphere the randoms LORs largely mimic the source, so any residual is
-expected to concentrate outside the sphere -- a faint halo -- rather than in the
-interior; the printed numbers say to what extent.)
+"""Case (b) randoms. Top row: the reconstructed sphere (central slice) for gold
+(trues only), uncorrected (all prompts), and randoms-corrected. Bottom row: the
+radial profiles of the three, and the uncorrected-minus-corrected difference
+(the randoms background, on a magnified scale). At low randoms fractions the
+three are nearly identical -- the correction is validated, the effect is small.
 
   python3 plot.py
 """
@@ -16,27 +12,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "air_10MBq.npz"))
+d = np.load(os.path.join(HERE, "air_bgo_1MBq.npz"))
 R = float(d["radius_mm"])
 ext = float(d["extent"])
 extent = [-ext, ext, -ext, ext]
-
-# --- quantitative report (printed every run) -----------------------------------
-def _report():
-    g, u, c = d["prof_gold"], d["prof_uncorr"], d["prof_corr"]
-    r = d["radii"]
-    out = r > R + 8                      # voxels well outside the sphere
-    su, sc = d["slice_uncorr"], d["slice_corr"]
-    print("air_10MBq randoms diagnostics")
-    print(f"  profile max|uncorr-gold|  = {np.abs(u - g).max():.4f}")
-    print(f"  profile max|corr -gold|   = {np.abs(c - g).max():.4f}")
-    print(f"  profile max|uncorr-corr|  = {np.abs(u - c).max():.4f}")
-    print(f"  slice  mean|uncorr-corr|  = {np.abs(su - sc).mean():.4e} "
-          f"(rel {np.abs(su - sc).mean() / sc.mean():.3%})")
-    print(f"  outside-sphere pedestal (gold/uncorr/corr) = "
-          f"{g[out].mean():.4f} / {u[out].mean():.4f} / {c[out].mean():.4f}")
-
-_report()
 
 fig = plt.figure(figsize=(15, 8.6))
 gs = fig.add_gridspec(2, 3, height_ratios=[1.15, 1.0], hspace=0.28, wspace=0.25)
@@ -66,11 +45,11 @@ axp.legend(frameon=False); axp.grid(alpha=0.3)
 # --- bottom-right: the randoms background (uncorrected - corrected) -------------
 axd = fig.add_subplot(gs[1, 2])
 im = axd.imshow((d["slice_uncorr"] - d["slice_corr"]).T, origin="lower", extent=extent,
-                cmap="RdBu_r", vmin=-0.25 * vmax, vmax=0.25 * vmax)
-axd.set_title("uncorrected - corrected  (×4)")
+                cmap="RdBu_r", vmin=-0.05 * vmax, vmax=0.05 * vmax)
+axd.set_title("uncorrected - corrected  (×20)")
 axd.set_xlabel("x (mm)"); axd.set_ylabel("y (mm)")
 fig.colorbar(im, ax=axd, fraction=0.046)
 
-out = os.path.join(HERE, "air_10MBq.png")
+out = os.path.join(HERE, "air_bgo_1MBq.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

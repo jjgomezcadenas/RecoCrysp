@@ -1,0 +1,31 @@
+# Water, attenuation-only study (run_att_only.jl). Uniform water sphere, 1 MBq,
+# BGO ring (geometry matched to the air runs). Reconstruct TRUE coincidences with
+# and without attenuation correction; a_i = exp(-mu * chord) through the sphere.
+# Scatter (~17%) and randoms (~1%) are left for run_att_scatter.jl.
+
+[data]
+lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_water_bgo_1MBq/lors_det.h5"
+
+[scanner]
+sample_radius_mm = 405.5
+afov_mm          = 1024.0
+
+[phantom]
+radius_mm = 80.0
+
+[attenuation]
+mu_per_cm = 0.096          # linear attenuation of water at 511 keV (narrow-beam; physical constant)
+
+[grid]
+n       = [51, 51, 51]
+voxsize = 4.0              # -> extent +-100 mm
+
+[sens]
+n_sample_lors = 20000000
+seed          = 1
+
+[recon]
+niter = 10
+
+[backend]
+device = "metal"
