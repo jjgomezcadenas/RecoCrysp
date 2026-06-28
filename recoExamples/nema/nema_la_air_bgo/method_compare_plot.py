@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 HERE = os.path.dirname(os.path.abspath(__file__))
 dq = np.load(os.path.join(HERE, "out", "nema_la_air_bgo_penalized_scan.npz"))
 dh = np.load(os.path.join(HERE, "out", "nema_la_air_bgo_huber_scan.npz"))
+df = np.load(os.path.join(HERE, "out", "nema_la_air_bgo_fwhm_scan.npz"))  # MLEM + post-filter
 diam = dq["diam_mm"]
 small = np.argsort(diam)[:3]                 # 10, 13, 17 mm
 
@@ -25,6 +26,11 @@ def trace(d, beta):
     cov = d["cov"][bi]
     crc = d["crc"][bi][:, small].mean(axis=1)  # mean over the 3 smallest spheres
     return cov, crc
+
+
+def postfilter_trace(d):
+    # MLEM + Gaussian post-filter, swept over FWHM (same CoV metric)
+    return d["cov"], d["crc"][:, small].mean(axis=1)
 
 
 fig, ax = plt.subplots(figsize=(8.5, 6))
@@ -38,10 +44,15 @@ curves = [
 for d, beta, lab, col, style in curves:
     cov, crc = trace(d, beta)
     ax.plot(cov, crc, style, ms=3, color=col, label=lab)
+# MLEM + post-filter, swept over FWHM (the honest comparison the iterative
+# traces alone omit) -- post-filtering moves MLEM off its unfiltered trace
+covf, crcf = postfilter_trace(df)
+ax.plot(covf, crcf, "-D", ms=4, color="#2ca02c", label="MLEM + post-filter (FWHM swept)")
 
 ax.set_xlabel("background CoV (noise)")
 ax.set_ylabel("mean CRC, 10/13/17 mm spheres (%)")
-ax.set_title("contrast vs noise frontier (over iterations): Huber vs quadratic vs MLEM")
+ax.set_title("contrast vs noise frontier: post-filter ≈ Huber > quadratic ≈ MLEM\n"
+             "(edge-preservation gives no clear gain for these low-contrast small spheres)")
 ax.grid(alpha=0.3)
 ax.legend(frameon=False)
 ax.set_xlim(left=0)

@@ -53,17 +53,28 @@ r_est = background_estimate(s_r, z_m, dz, rmask;
 println("randoms model: sum = $(round(sum(r_est); digits=0)) (target $n_rand)"); flush(stdout)
 
 allx, allxe = to_dev(c.xstart), to_dev(c.xend)
-reco(xs, xe, sens; contam = nothing) = Array(mlem(
+# Reconstruction method: "huber" (edge-preserving OSL MAP-EM, the winner of the
+# frontier comparison) or "mlem" (+ Gaussian post-filter). Both go through one
+# `reco` that builds the model (carrying the randoms contamination) and runs it.
+method = lowercase(get(cfg["recon"], "method", "huber"))
+if method == "huber"
+    prior = HuberPrior(Float32(cfg["recon"]["huber_beta"]), Float32(cfg["recon"]["huber_delta"]))
+    runrec(model) = osl_mlem(model, x0, prior; niter = niter)
+    post = identity
+    tag = "Huber β=$(cfg["recon"]["huber_beta"]) δ=$(cfg["recon"]["huber_delta"])"
+else
+    fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
+    runrec(model) = mlem(model, x0; niter = niter)
+    post = img -> gaussian_postfilter(img, fwhm, vs)
+    tag = "MLEM + $(fwhm)mm post-filter"
+end
+reco(xs, xe, sens; contam = nothing) = post(Array(runrec(
     ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
-        contamination = contam === nothing ? nothing : to_dev(contam)),
-    x0; niter = niter))
-
-fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
-pf(img) = gaussian_postfilter(img, fwhm, vs)        # Gaussian post-filter (noise control)
-rec_gold   = pf(reco(to_dev(c.xstart[:, tmask]), to_dev(c.xend[:, tmask]), sens_gold))
-rec_uncorr = pf(reco(allx, allxe, sens_prompt))
-rec_corr   = pf(reco(allx, allxe, sens_prompt; contam = r_est))
-println("reconstructed gold / uncorr / corr  (post-filter $(fwhm) mm FWHM)"); flush(stdout)
+        contamination = contam === nothing ? nothing : to_dev(contam)))))
+rec_gold   = reco(to_dev(c.xstart[:, tmask]), to_dev(c.xend[:, tmask]), sens_gold)
+rec_uncorr = reco(allx, allxe, sens_prompt)
+rec_corr   = reco(allx, allxe, sens_prompt; contam = r_est)
+println("reconstructed gold / uncorr / corr  ($tag)"); flush(stdout)
 
 # ROIs: per-sphere VOI means + central background mean for each recon
 smasks = nema_sphere_masks(n, org, vs; shrink_mm = Float64(cfg["roi"]["sphere_shrink_mm"]))

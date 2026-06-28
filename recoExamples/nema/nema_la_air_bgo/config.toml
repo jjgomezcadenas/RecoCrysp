@@ -26,11 +26,13 @@ n_sample_lors = 20000000
 seed          = 1
 
 [recon]
-niter = 18                 # ~converges the small spheres (see scan_niter.jl); noise then tamed by the post-filter
+niter       = 30           # Huber bounds the noise, so iterate further to converge the contrast
+method      = "huber"      # main recon: "huber" (edge-preserving OSL, the frontier winner) | "mlem"
+huber_beta  = 1000.0       # Huber strength (frontier sweet spot; bg CoV ~0.4)
+huber_delta = 0.05         # edge threshold: sphere edges (~0.26) preserved, background noise (~0.04) smoothed
 
 [postfilter]
-fwhm_mm = 8.0              # Gaussian post-filter width -- the smoothness/contrast knob (scan_fwhm.jl):
-                          # 8mm -> bg CoV 0.23, big spheres ~90%, 10mm ~45% (realistic NEMA rolloff)
+fwhm_mm = 8.0              # only used when method="mlem" -- Gaussian post-filter (scan_fwhm.jl tradeoff)
 
 [randoms]                  # smoothed randoms model in sinogram coords (truth==2)
 n_sr      = 40
