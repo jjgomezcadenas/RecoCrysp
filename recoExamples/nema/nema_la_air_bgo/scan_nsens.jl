@@ -26,7 +26,7 @@ vs  = ntuple(_ -> Float32(cfg["grid"]["voxsize"]), 3)
 n   = Tuple(Int.(cfg["grid"]["n"]))
 org = ntuple(i -> -(n[i] - 1) / 2 * vs[i], 3)
 niter = 20; fwhm = 6.0
-nsens_list = [20_000_000, 50_000_000, 100_000_000, 200_000_000]
+nsens_list = [20_000_000, 50_000_000, 100_000_000, 200_000_000, 500_000_000]
 
 sc = ContinuousPET(diameter = 2 * Float32(cfg["scanner"]["sample_radius_mm"]),
                    afov = Float32(cfg["scanner"]["afov_mm"]))
