@@ -68,6 +68,17 @@ function _smooth3(A, sigmas)
     return B
 end
 
+"""
+    gaussian_postfilter(img, fwhm_mm, voxsize) -> Array
+
+Separable 3D Gaussian post-filter of full-width-half-maximum `fwhm_mm`, the
+standard noise control for an unregularized MLEM/OSEM reconstruction (iterate to
+converge contrast, then smooth away the high-frequency speckle). Per-axis sigma in
+voxels is `fwhm_mm / (2.3548 * voxsize[d])`; `fwhm_mm <= 0` returns `img` unchanged.
+"""
+gaussian_postfilter(img, fwhm_mm, voxsize) = fwhm_mm <= 0 ? img :
+    _smooth3(img, ntuple(d -> fwhm_mm / (2.3548 * Float64(voxsize[d])), 3))
+
 _binidx(v, lo, hi, n) = clamp(floor(Int, (v - lo) / (hi - lo) * n) + 1, 1, n)
 
 # Histogram the background subset and all prompts on the sinogram grid over the
