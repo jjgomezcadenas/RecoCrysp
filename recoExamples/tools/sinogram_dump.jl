@@ -8,8 +8,8 @@
 #
 # Reads [data].lors, the [<class>] binning block, [phantom].radius_mm (edge marker),
 # and `tag`. Prompt population = trues + the chosen background class (the other
-# contamination is dropped). Writes <tag>_sinogram.npz next to the config, read by
-# sinogram_plot.py.
+# contamination is dropped). Writes <config_dir>/out/<tag>_sinogram.npz, read by
+# sinogram_plot.py (which writes the figure to the sibling figures/).
 
 using RecoExamples
 using NPZ
@@ -40,7 +40,9 @@ S, P, Ssm, Psm, spr, spz, spd = background_sinograms(s_r, z_m, dz, bg;
 
 tag = cfg["tag"]
 edge = haskey(cfg, "phantom") ? Float32(cfg["phantom"]["radius_mm"]) : 0.0f0
-out = joinpath(dirname(abspath(cfgpath)), "$(tag)_sinogram.npz")
+outdir = joinpath(dirname(abspath(cfgpath)), "out")
+mkpath(outdir)
+out = joinpath(outdir, "$(tag)_sinogram.npz")
 npzwrite(out, Dict(
     "S" => S, "P" => P, "Ssm" => Ssm, "Psm" => Psm,
     "span_sr" => collect(Float32.(spr)), "span_zm" => collect(Float32.(spz)),

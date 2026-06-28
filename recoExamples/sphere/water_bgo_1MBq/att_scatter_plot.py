@@ -18,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "water_bgo_1MBq_att_scatter.npz"))
+d = np.load(os.path.join(HERE, "out", "water_bgo_1MBq_att_scatter.npz"))
 R = float(d["radius_mm"])
 ext = float(d["extent"])
 extent = [-ext, ext, -ext, ext]
@@ -79,6 +79,7 @@ axr.axhline(0, color="gray", lw=0.6); axr.axvline(R, color="gray", lw=0.8, ls=":
 axr.set_xlabel("radius (mm)"); axr.set_ylabel("profile - gold")
 axr.set_title("difference from gold"); axr.legend(frameon=False); axr.grid(alpha=0.3)
 
-out = os.path.join(HERE, "water_bgo_1MBq_att_scatter.png")
+os.makedirs(os.path.join(HERE, "figures"), exist_ok=True)
+out = os.path.join(HERE, "figures", "water_bgo_1MBq_att_scatter.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

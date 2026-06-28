@@ -21,7 +21,7 @@ import os
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "water_bgo_1MBq_att_scatter.npz"))
+d = np.load(os.path.join(HERE, "out", "water_bgo_1MBq_att_scatter.npz"))
 R = float(d["radius_mm"])
 ext = float(d["extent"])
 

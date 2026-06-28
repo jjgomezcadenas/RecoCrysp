@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "air_bgo_1MBq.npz"))
+d = np.load(os.path.join(HERE, "out", "air_bgo_1MBq.npz"))
 R = float(d["radius_mm"])
 ext = float(d["extent"])
 extent = [-ext, ext, -ext, ext]
@@ -50,6 +50,7 @@ axd.set_title("uncorrected - corrected  (×20)")
 axd.set_xlabel("x (mm)"); axd.set_ylabel("y (mm)")
 fig.colorbar(im, ax=axd, fraction=0.046)
 
-out = os.path.join(HERE, "air_bgo_1MBq.png")
+os.makedirs(os.path.join(HERE, "figures"), exist_ok=True)
+out = os.path.join(HERE, "figures", "air_bgo_1MBq.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

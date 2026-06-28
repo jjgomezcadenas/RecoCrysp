@@ -102,7 +102,8 @@ radii = Float32[(b - 0.5) * vs[1] for b in 1:nb]
 
 # --- dump central slices + the radial profile -----------------------------------
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "air_bgo_100kBq.npz"), Dict(
+mkpath(joinpath(@__DIR__, "out"))
+npzwrite(joinpath(@__DIR__, "out", "air_bgo_100kBq.npz"), Dict(
     "slice_true"  => x_true[:, :, kz],
     "slice_rec"   => recn[:, :, kz],
     "slice_rec_xz" => recn[:, n[2] ÷ 2 + 1, :],

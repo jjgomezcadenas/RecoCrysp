@@ -102,7 +102,8 @@ function profile(img)
 end
 
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "water_bgo_1MBq_att_scatter.npz"), Dict(
+mkpath(joinpath(@__DIR__, "out"))
+npzwrite(joinpath(@__DIR__, "out", "water_bgo_1MBq_att_scatter.npz"), Dict(
     "radii" => radii, "radius_mm" => R,
     "prof_gold" => Float32.(profile(rec_gold)),
     "prof_uncorr" => Float32.(profile(rec_uncorr)),

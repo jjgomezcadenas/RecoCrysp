@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "water_bgo_1MBq_att_only.npz"))
+d = np.load(os.path.join(HERE, "out", "water_bgo_1MBq_att_only.npz"))
 R = float(d["radius_mm"])
 mu_cm = float(d["mu_per_cm"])
 ext = float(d["extent"])
@@ -61,6 +61,7 @@ axp.set_xlabel("radius (mm)"); axp.set_ylabel("normalized activity")
 axp.set_title("radial profiles")
 axp.legend(frameon=False); axp.grid(alpha=0.3)
 
-out = os.path.join(HERE, "water_bgo_1MBq_att_only.png")
+os.makedirs(os.path.join(HERE, "figures"), exist_ok=True)
+out = os.path.join(HERE, "figures", "water_bgo_1MBq_att_only.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

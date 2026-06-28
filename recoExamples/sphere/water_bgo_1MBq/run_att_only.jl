@@ -84,7 +84,8 @@ function profile(img)
 end
 
 kz = n[3] ÷ 2 + 1
-npzwrite(joinpath(@__DIR__, "water_bgo_1MBq_att_only.npz"), Dict(
+mkpath(joinpath(@__DIR__, "out"))
+npzwrite(joinpath(@__DIR__, "out", "water_bgo_1MBq_att_only.npz"), Dict(
     "radii" => radii, "radius_mm" => R, "mu_per_cm" => Float32(cfg["attenuation"]["mu_per_cm"]),
     "prof_noac" => Float32.(profile(rec_noac)),
     "prof_ac" => Float32.(profile(rec_ac)),

@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-d = np.load(os.path.join(HERE, "air_bgo_100kBq.npz"))
+d = np.load(os.path.join(HERE, "out", "air_bgo_100kBq.npz"))
 ext = float(d["extent"])
 R = float(d["radius_mm"])
 extent = [-ext, ext, -ext, ext]
@@ -40,6 +40,7 @@ axp.set_ylim(0, 1.4)
 axp.grid(alpha=0.3)
 
 fig.tight_layout()
-out = os.path.join(HERE, "air_bgo_100kBq.png")
+os.makedirs(os.path.join(HERE, "figures"), exist_ok=True)
+out = os.path.join(HERE, "figures", "air_bgo_100kBq.png")
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)

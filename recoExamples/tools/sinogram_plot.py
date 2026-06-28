@@ -10,7 +10,8 @@ background fraction should rise toward 1. The bottom panel is the fraction vs s_
 The printed diagnostics give the background fraction inside vs outside the edge --
 the test of whether the model is strong enough where the background dominates.
 
-  python3 sinogram_plot.py <tag>_sinogram.npz [class]
+  python3 sinogram_plot.py <scenario>/out/<tag>_sinogram.npz [class]
+  (writes the figure to the sibling <scenario>/figures/)
 """
 import os
 import sys
@@ -82,6 +83,9 @@ axr.set_xlabel("s_r (mm)"); axr.set_ylabel(f"{cls} fraction")
 axr.set_title(f"{cls} fraction vs radial offset")
 axr.legend(frameon=False); axr.grid(alpha=0.3)
 
-out = NPZ.replace(".npz", ".png")
+# npz lives in <scenario>/out/; write the figure to the sibling <scenario>/figures/
+figdir = os.path.join(os.path.dirname(os.path.dirname(NPZ)), "figures")
+os.makedirs(figdir, exist_ok=True)
+out = os.path.join(figdir, os.path.basename(NPZ).replace(".npz", ".png"))
 fig.savefig(out, dpi=150, bbox_inches="tight")
 print("wrote", out)
