@@ -51,5 +51,10 @@ bg_z_half_mm     = 10.0
 [penalized]                # De Pierro quadratic-smoothness prior beta sweep (scan_penalized.jl);
 betas = [0.0, 100.0, 300.0, 1000.0, 3000.0]   # beta=0 == MLEM. Scale is large here because sens ~ 567.
 
+[huber]                    # edge-preserving Huber prior sweep (scan_huber.jl), via OSL
+betas = [0.0, 300.0, 1000.0, 3000.0, 10000.0]
+delta = 0.05               # edge threshold: above it (sphere edges ~0.26) the influence saturates;
+                           # below it (background noise ~0.04) it smooths like the quadratic prior
+
 [backend]
 device = "metal"
