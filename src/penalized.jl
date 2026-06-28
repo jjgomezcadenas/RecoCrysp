@@ -83,6 +83,74 @@ function _prior_BG(p::QuadraticSmoothnessPrior, x, sens)
     return B, G
 end
 
+# ============================ edge-preserving priors ============================
+# Non-quadratic priors have NO De Pierro closed form; we optimize L+R by the
+# One-Step-Late (OSL, Green 1990) MAP-EM update
+#     x⁺ = t / (sens + ∇R(x)),
+# evaluating the penalty gradient at the current iterate. β=0 ⇒ MLEM. OSL is the
+# standard MLEM-structured edge-preserving scheme; it is not provably monotone
+# (the penalty gradient is one-step-late), so we rely on β=0≡MLEM and empirics.
+
+"""
+    HuberPrior(β, δ)
+
+Edge-preserving Huber prior on 6-neighbour differences: penalty
+`β Σ_j Σ_{k∈N_j} ρ_δ(x_j-x_k)` with Huber `ρ_δ` (quadratic for |t|≤δ, linear
+beyond). Its gradient uses the clamped influence `ψ_δ(t)=clamp(t,-δ,δ)`: below δ
+it smooths like the quadratic prior, above δ (an edge) the influence saturates so
+edges are preserved. Use with [`osl_mlem`](@ref). Large δ ⇒ quadratic smoothness.
+"""
+struct HuberPrior <: Prior
+    beta::Float32
+    delta::Float32
+end
+
+# Σ_{k∈N_j} clamp(x_j - x_k, -δ, δ) over in-bounds 6-neighbours (the Huber influence).
+@kernel function _huber_grad_kernel!(g, @Const(x), n, delta)
+    I = @index(Global, Cartesian)
+    i, j, k = I[1], I[2], I[3]
+    xc = x[I]; s = 0.0f0
+    @inbounds begin
+        if i > 1;    s += clamp(xc - x[i-1, j, k], -delta, delta); end
+        if i < n[1]; s += clamp(xc - x[i+1, j, k], -delta, delta); end
+        if j > 1;    s += clamp(xc - x[i, j-1, k], -delta, delta); end
+        if j < n[2]; s += clamp(xc - x[i, j+1, k], -delta, delta); end
+        if k > 1;    s += clamp(xc - x[i, j, k-1], -delta, delta); end
+        if k < n[3]; s += clamp(xc - x[i, j, k+1], -delta, delta); end
+        g[I] = s
+    end
+end
+
+# penalty gradient ∇R(x) (includes β); for OSL.
+function penalty_gradient(p::HuberPrior, x)
+    g = similar(x)
+    backend = KA.get_backend(x)
+    _huber_grad_kernel!(backend)(g, x, Int32.(size(x)), p.delta; ndrange = size(x))
+    KA.synchronize(backend)
+    return p.beta .* g
+end
+
+"""
+    osl_mlem(model, x0, prior; niter = 50, callback = nothing)
+
+One-Step-Late MAP-EM for an edge-preserving (non-quadratic) `prior` exposing
+`penalty_gradient`. Update `x⁺ = t / (sens + ∇R(x))`, clamped non-negative; voxels
+where the denominator is non-positive (rare, large β) are left unchanged. β=0 is
+[`mlem`](@ref). For quadratic priors prefer [`penalized_mlem`](@ref) (monotone).
+"""
+function osl_mlem(m::ListmodePoissonModel, x0, prior::Prior; niter::Integer = 50, callback = nothing)
+    x = copy(x0)
+    sens = m.sensitivity
+    for k in 1:niter
+        t, _ = _em_numerator(m, x)
+        denom = sens .+ penalty_gradient(prior, x)
+        x = ifelse.(denom .> 0.0f0, t ./ denom, x)
+        x = max.(x, 0.0f0)
+        callback === nothing || callback(k, x)
+    end
+    return x
+end
+
 """
     penalized_mlem(model, x0, prior = NoPrior(); niter = 50, callback = nothing)
 

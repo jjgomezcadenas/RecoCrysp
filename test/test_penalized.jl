@@ -82,3 +82,17 @@ end
     println("  cost(smooth)    $(round(costs2[1];sigdigits=5)) -> $(round(costs2[end];sigdigits=5))")
     println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  smooth $(round(std(smo[bg]);sigdigits=3))")
 end
+
+@testset "osl_mlem (Huber, OSL)" begin
+    bg = [ax[1][i]^2 + ax[2][j]^2 + ax[3][k]^2 > 24.0f0^2 && sens[i, j, k] > 0
+          for i in 1:n[1], j in 1:n[2], k in 1:n[3]]
+    # (1) beta=0 == mlem
+    a = osl_mlem(m, x0, HuberPrior(0.0f0, 0.3f0); niter = 40)
+    b = mlem(m, x0; niter = 40)
+    @test maximum(abs.(a .- b)) <= 1.0f-4 * maximum(b)
+    # (2) Huber reduces background variance vs unregularized at matched niter
+    raw = mlem(m, x0; niter = 30)
+    hub = osl_mlem(m, x0, HuberPrior(0.2f0, 0.3f0); niter = 30)
+    @test std(hub[bg]) < std(raw[bg])
+    println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  huber $(round(std(hub[bg]);sigdigits=3))")
+end
