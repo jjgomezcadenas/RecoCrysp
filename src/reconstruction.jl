@@ -152,6 +152,15 @@ function neg_log_likelihood(m::ListmodePoissonModel, x)
     return Float64(sum(m.sensitivity .* x)) - Float64(sum(data))
 end
 
+# EM numerator `t = x ⊙ Aᵀ(n·counts/pred)` together with the sensitivity. Shared by
+# the MLEM update (`x⁺ = t/sens`) and the penalized-MLEM / De Pierro update.
+function _em_numerator(m::ListmodePoissonModel, x)
+    pred = predicted(m, x)
+    ratio = ifelse.(m.counts .> 0.0f0, m.mult .* m.counts ./ pred, 0.0f0)
+    bp = joseph3d_back(m.xstart, m.xend, ratio, m.img_shape, m.img_origin, m.voxsize)
+    return x .* bp, m.sensitivity
+end
+
 """
     em_update(model, x) -> x_new
 

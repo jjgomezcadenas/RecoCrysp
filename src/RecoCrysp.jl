@@ -50,6 +50,7 @@ include("phantoms.jl")
 include("psf.jl")
 include("projectors.jl")
 include("reconstruction.jl")
+include("penalized.jl")
 
 export joseph3d_fwd!, joseph3d_fwd, joseph3d_back!, joseph3d_back
 export RegularPolygonPETScannerGeometry, RegularPolygonPETLORDescriptor,
@@ -58,5 +59,6 @@ export ContinuousPET, sample_lors
 export uniform_sphere, uniform_cylinder, derenzo, gaussian_blur
 export sensitivity_image, ListmodePoissonModel, predicted, neg_log_likelihood,
        em_update, mlem, osem, subset_models
+export penalized_mlem, Prior, NoPrior, QuadraticIntensityPrior, QuadraticSmoothnessPrior
 
 end # module
