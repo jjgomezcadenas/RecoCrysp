@@ -1,0 +1,24 @@
+# Working agreement
+
+## ⛔ A QUESTION IS A QUESTION — NEVER AN ACTION
+
+When the user asks a question, **ANSWER IT. Do not do anything else.**
+
+- A question (e.g. "Why X?", "What about Y?", "Where is Z?", "Can it do W?",
+  "Don't you think...?") is a request for an **answer only** — never a license to
+  edit files, run commands, reconstruct, plot, commit, or "helpfully" act.
+- **Take an action ONLY when the user explicitly tells you to** ("do it", "run it",
+  "build it", "commit", "go ahead"). If unsure whether something is an
+  instruction, treat it as a question and ask.
+- This holds even when the answer obviously suggests a next step. State the next
+  step in words and **stop**. Wait for the go-ahead.
+
+## Other standing rules
+- Ask questions plainly, in prose — not as multiple-choice "shopping list" menus
+  (avoid the AskUserQuestion option-list format). State what you need to know directly.
+- Never use the word "honest"/"honestly" — state the thing plainly.
+- Don't overclaim: include all the relevant options before any "X beats Y" claim;
+  lead with measured numbers, not adjectives.
+- Always state the path of any figure you produce (e.g.
+  `recoExamples/.../figures/foo.png`) so it can be opened.
+- Confirm before writing/building/committing/pushing.
