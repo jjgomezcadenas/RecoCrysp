@@ -60,13 +60,21 @@ function profile(rec)
     return Float32.(prof ./ max.(cnt, 1))
 end
 
-checkpoints = [10, 20, 40]
+# Is the central radial tilt iteration-driven (under-convergence) or fixed? The
+# locked-recipe recon (Huber, niter=30) shows ~26% centre depression vs the old
+# coarse/under-converged ±8%. Scan UNREGULARIZED MLEM over niter and read off the
+# centre/peak ratio at each checkpoint (a Gaussian post-filter is low-pass and
+# leaves this radial profile essentially unchanged, so MLEM is the clean probe).
+checkpoints = [1, 5, 10, 20, 30, 40]
+ninr = floor(Int, (R - 2 * vs[1]) / vs[1])           # interior bins (for the peak)
 profs = Dict{Int,Vector{Float32}}()
 function snapshot(k, x)
     if k in checkpoints
         sync_dev()
-        profs[k] = profile(Array(x))
-        println("  checkpoint $k"); flush(stdout)
+        p = profile(Array(x)); profs[k] = p
+        ctr = p[1]; pk = maximum(@view p[1:ninr])
+        println("  niter $(lpad(k,2))  centre $(round(ctr; digits=3))  " *
+                "peak $(round(pk; digits=3))  centre/peak $(round(ctr/pk; digits=3))"); flush(stdout)
     end
 end
 

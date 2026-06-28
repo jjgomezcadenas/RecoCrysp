@@ -1,36 +1,47 @@
 # Uniform sphere in VACUUM, high activity (10 MBq) — the high end of the randoms
 # series. ~8.7% of prompts are randoms (10x air_1MBq, 100x air_100kBq). Reconstruct
 # all prompts (trues+randoms; vacuum, no scatter) without and with randoms
-# correction, against the trues-only gold standard, to measure how much the
-# randoms bias the image at this fraction. Same scanner/grid as air_1MBq; only the
-# data and the (auto-calibrated) randoms scale change.
+# correction, against the trues-only gold standard. Same scanner/grid and locked
+# recipe as air_1MBq; only the data and the (auto-calibrated) randoms scale change.
+# Randoms model is the singles-free sinogram model (truth==2, background_estimate).
 
 [data]
-lors    = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo_10MBq/lors_det.h5"
-singles = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo_10MBq/singles.h5"
+lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_air_bgo_10MBq/lors_det.h5"
 
 [scanner]
 sample_radius_mm = 405.5
 afov_mm          = 1024.0
-n_phi            = 48
-n_z              = 20
 
 [phantom]
 radius_mm = 80.0
 
 [grid]                    # extend a bit past the sphere to see the randoms background
-n       = [51, 51, 51]
-voxsize = 4.0             # -> extent +-100 mm
+n       = [81, 81, 81]
+voxsize = 2.5             # -> extent +-100 mm. Same resolution as the NEMA study.
 
 [sens]
-n_sample_lors = 20000000
+n_sample_lors = 500000000 # 500 M (locked recipe): sample Aᵀ(1) below the noise floor.
 seed          = 1
 
-[recon]
-niter = 10
+[recon]                   # locked recipe: edge-preserving Huber (OSL MAP-EM)
+niter       = 30
+method      = "huber"     # "huber" | "mlem"
+huber_beta  = 1000.0
+huber_delta = 0.05
 
-[randoms]
-tau_ns = 3.0              # coincidence window; estimate scale calibrated to the flagged random count
+[postfilter]
+fwhm_mm = 8.0             # only used when method="mlem"
+
+[randoms]                  # smoothed randoms model in sinogram coords (truth==2),
+n_sr      = 40             #    singles-free — same machinery as NEMA's randoms.
+n_zm      = 40
+n_dz      = 16
+sr_max_mm = 200.0
+zm_max_mm = 180.0
+dz_max_mm = 400.0
+smooth_sr = 0.0            # preserve any sharp edge at the sphere footprint
+smooth_zm = 1.5
+smooth_dz = 1.0
 
 [backend]
 device = "metal"

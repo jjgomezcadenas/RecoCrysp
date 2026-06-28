@@ -71,11 +71,24 @@ sens_gold = base .* Float32(n_true / nsens)
 sens_nr   = base .* Float32(n_nr / nsens)
 x0 = Float32.(base .> 0)
 
-reco(xs, xe, sens, mult; contam = nothing) = Array(mlem(
+# attenuation case: OSL Huber diverges here (Aᵀ(a) small at centre), so use the
+# monotone De Pierro quadratic-smoothness prior (penalized_mlem). "huber"/"mlem"
+# branches kept for the vacuum/contrast and unregularized paths.
+method = lowercase(get(cfg["recon"], "method", "quadratic"))
+if method == "quadratic"
+    prior = QuadraticSmoothnessPrior(Float32(cfg["recon"]["quad_beta"]))
+    runrec(model) = penalized_mlem(model, x0, prior; niter = niter); post = identity
+elseif method == "huber"
+    prior = HuberPrior(Float32(cfg["recon"]["huber_beta"]), Float32(cfg["recon"]["huber_delta"]))
+    runrec(model) = osl_mlem(model, x0, prior; niter = niter); post = identity
+else
+    fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
+    runrec(model) = mlem(model, x0; niter = niter); post = img -> gaussian_postfilter(img, fwhm, vs)
+end
+reco(xs, xe, sens, mult; contam = nothing) = post(Array(runrec(
     ListmodePoissonModel(to_dev(xs), to_dev(xe), sens; img_origin = org, voxsize = vs,
                          mult = to_dev(mult),
-                         contamination = contam === nothing ? nothing : to_dev(contam)),
-    x0; niter = niter))
+                         contamination = contam === nothing ? nothing : to_dev(contam)))))
 
 rec_gold   = reco(xs_t, xe_t, sens_gold, a_t)
 rec_uncorr = reco(xs_nr, xe_nr, sens_nr, a_nr)

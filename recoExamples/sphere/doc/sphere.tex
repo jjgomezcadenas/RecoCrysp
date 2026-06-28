@@ -12,13 +12,16 @@
   {../air_bgo_1MBq/figures/}%
   {../air_bgo_10MBq/figures/}%
   {../water_bgo_1MBq/figures/}%
+  {../../nema/nema_la_air_bgo/figures/}%
 }
 
 \newcommand{\sr}{s_{r}}
+\newcommand{\sens}{\text{sens}}
 \newcommand{\code}[1]{\texttt{#1}}
 
-\title{Reconstructing PTCRYSP Monte-Carlo Data on a Uniform Sphere:\\
-       Normalization, Randoms, Attenuation, and Scatter}
+\title{Reconstructing PTCRYSP Monte-Carlo Data:\\
+       Normalization, Randoms, Attenuation, Scatter on a Uniform Sphere,\\
+       and Reconstruction Noise on a NEMA Contrast Phantom}
 \author{RecoCrysp --- MC reconstruction studies (Part III)}
 \date{\today}
 
@@ -35,8 +38,15 @@ attenuation, scatter --- against the truth. The recurring lesson is that a unifo
 centred sphere is spatially degenerate with any smooth additive background, so the
 randoms and scatter corrections, though demonstrably correct, are nearly invisible
 on this phantom; attenuation, being multiplicative and radially structured, is the
-one effect the sphere displays dramatically. The natural next step is a contrast
-phantom.
+one effect the sphere displays dramatically. We then move to a NEMA NU-2
+image-quality contrast phantom, where the spheres \emph{are} displayed, and use it
+to track down the reconstruction noise. The headline result is that the dominant
+background mottle is neither the data statistics nor the voxel size but the
+Monte-Carlo sampling noise of the \emph{sensitivity image} $A^{\!\top}(1)$:
+under-sampled it injects a $\sim\!30\%$ background coefficient of variation,
+amplified by the MLEM denominator, that falls as $1/\sqrt{n_{\text{sens}}}$ and is
+removed by computing the sensitivity from a large LOR sample. Normalization, in
+other words, is itself a sizeable Monte-Carlo job.
 \end{abstract}
 
 \section{Setup and method}
@@ -78,31 +88,59 @@ on the scanner surface and put the bare back-projection on the per-event scale w
 $\text{scale}=n_{\text{events}}/n_{\text{sens}}$. All kernels run unchanged on CPU
 or Apple Metal (the latter $\sim\!40\times$ faster per iteration here).
 
+All reconstructions in this report use one locked recipe, matched to the NEMA study
+of Section~\ref{sec:nema}: a $2.5$\,mm grid; the sensitivity sampled at
+$n_{\text{sens}}=5\times10^{8}$ LORs (the count needed to push its Monte-Carlo
+sampling noise below the floor --- the central finding of Section~\ref{sec:nema},
+the reason an apparently trivial $A^{\!\top}(1)$ is a large MC job); and a
+regularized update in place of plain MLEM (Part~I). The vacuum scenarios use the
+edge-preserving Huber prior (OSL); the water scenarios use the De Pierro
+quadratic-smoothness prior (\code{penalized\_mlem}), because OSL Huber \emph{diverges}
+under attenuation --- there $\text{sens}=A^{\!\top}(a)$ is small at the centre, so the
+one-step-late denominator $\text{sens}+\nabla R$ collapses and a hot voxel runs away.
+De Pierro is monotone and cannot, so it is the right choice when the sensitivity is
+small somewhere.
+
 \section{Normalization (air, $n=1$)}
 
 For a continuous monolithic crystal there is no per-crystal efficiency variation,
 so the library's analytic geometric sensitivity $A^{\!\top}(1)$ \emph{is} the
 normalization: $n\equiv 1$, provided the analytic scanner geometry matches the
 simulated one. Reconstructing the vacuum sphere with $n=1$ and no contamination
-yields a flat interior (Fig.~\ref{fig:norm}): the per-voxel coefficient of
-variation is $\approx 0.29$ (Poisson noise), on top of a gentle $\pm 8\%$ radial
-tilt (centre low, rim high).
+yields a quiet, near-flat interior (Fig.~\ref{fig:norm}): the per-voxel coefficient
+of variation is $\approx 0.10$, on top of a radial tilt (centre low, rim high).
 
-That $\pm 8\%$ tilt is \emph{not} detector efficiency. Feeding the pipeline ideal,
-efficiency-free events (isotropic emission, geometry only) reproduces the same
-ratio, so the tilt is a LOR-sampling \emph{measure} mismatch --- surface-endpoint-pair
-sampling versus the emission-detection measure of the real LORs --- not a physical
-efficiency that would need an MC normalization scan. We carry it as a fixed baseline.
-(The normalization diagnostics that establish this live in
-\code{air\_bgo\_100kBq/diagnostics/}.)
+That residual texture is \emph{not} Poisson noise --- an early read of this run, on a
+coarse grid and an under-sampled sensitivity, put the interior CoV at $\approx 0.29$
+and called it Poisson, which the NEMA study (Section~\ref{sec:nema}) later showed was
+wrong: it was the Monte-Carlo sampling noise of $A^{\!\top}(1)$ itself, sampled at
+only $2\times10^{7}$ LORs. At the locked $5\times10^{8}$ the CoV drops to $\approx
+0.10$, exactly the NEMA behaviour, and the interior is genuinely flat in noise.
+
+The radial tilt is a separate, real effect. At the locked recipe it is larger than
+the $\pm 8\%$ once quoted: the converged profile runs from a centre at $\approx 0.74$
+of the interior mean up to $\approx 1.06$ near the rim --- a $\sim\!25\%$ centre
+depression. The increase is \emph{not} the regularizer: an unregularized MLEM scan
+(\code{diagnostics/scan\_niter.jl}) converges to the same centre/peak ratio
+($0.72$ at $30$ iterations, versus $0.69$ for Huber), and it is not under-stopping
+either (the ratio settles by $\sim\!20$ iterations). It is the finer $2.5$\,mm grid
+resolving a tilt the old $4$\,mm voxels averaged away: at matched iterations the only
+change from the $\pm 8\%$ run is the voxel size. The sign and origin are unchanged ---
+feeding the pipeline ideal, efficiency-free events reproduces the same ratio, so the
+tilt is a LOR-sampling \emph{measure} mismatch (surface-endpoint-pair sampling versus
+the emission-detection measure of the real LORs), not a detector efficiency needing an
+MC normalization scan. We carry it as a fixed baseline; which measure is the correct
+one to normalize with remains the open question (the diagnostics live in
+\code{air\_bgo\_100kBq/diagnostics/}).
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{air_bgo_100kBq}
-  \caption{Normalization on the vacuum sphere. Left: the true uniform sphere
-  (central slice). Middle: the $n=1$ MLEM reconstruction (same slice), flat to
-  within noise. Right: the radial profile, sitting at $1.0$ inside the sphere up to
-  the $\pm 8\%$ measure tilt.}
+  \caption{Normalization on the vacuum sphere (locked recipe: $n=1$, Huber,
+  $5\times10^{8}$ sensitivity LORs, $2.5$\,mm). Left: the true uniform sphere
+  (central slice). Middle: the reconstruction (same slice), flat in noise
+  (interior CoV $\approx 0.10$). Right: the radial profile, with the $\sim\!25\%$
+  centre-low measure tilt that the fine grid resolves.}
   \label{fig:norm}
 \end{figure}
 
@@ -111,19 +149,24 @@ efficiency that would need an MC normalization scan. We carry it as a fixed base
 Randoms scale with \emph{activity}, not event count. Three vacuum datasets at the
 same statistics but $100$\,kBq, $1$\,MBq, and $10$\,MBq (over $1000$, $100$, and
 $10$\,s) give random fractions of $0.03\%$, $0.94\%$, and $8.72\%$ --- linear in
-activity, as expected ($r_{ij}=2\tau\,S_i S_j/T$). The randoms estimate is built
-from the singles rates $S$, evaluated per event and calibrated so its sum equals
-the flagged random total (it matches exactly).
+activity, as expected ($r_{ij}=2\tau\,S_i S_j/T$). The randoms model is the same
+singles-free, class-agnostic estimator used for scatter and for the NEMA randoms
+study (Section~\ref{sec:nema}): the flagged random LORs (truth $=2$) are histogrammed
+in sinogram coordinates, smoothed, and read back per event as the local random
+fraction, calibrated so its sum equals the flagged random total (it matches exactly,
+e.g.\ $544{,}451$ at $1$\,MBq). No singles file is needed.
 
-The three-way comparison (trues-only gold / uncorrected / singles-corrected) was
-run and the machinery validated, but even at $8.7\%$ the corrected and uncorrected
-reconstructions of the uniform sphere differ by under a percent in the interior:
-the randoms form a smooth, near-uniform pedestal that is degenerate with the sphere
-and is divided out by the interior-mean normalization. The only clean signature is a
-faint outside-sphere halo. We therefore report randoms in words and show no figure;
-a real randoms demonstration needs a contrast phantom. (The drivers remain under
-\code{air\_bgo\_1MBq/} and \code{air\_bgo\_10MBq/}; their figures await regenerated
-\code{singles.h5}.)
+The three-way comparison (trues-only gold / uncorrected / corrected) runs cleanly
+at the locked recipe, but even at $8.7\%$ the corrected and uncorrected
+reconstructions of the uniform sphere differ by under a percent in the interior
+(slice mean $|$uncorr$-$corr$|\approx 0.7\%$): the randoms form a smooth, near-uniform
+pedestal that is degenerate with the sphere and is divided out by the interior-mean
+normalization. The only clean signature is the outside-sphere halo, which the
+correction pulls partway back (pedestal gold $0\to$ uncorr $0.0018\to$ corr $0.0014$
+at $10$\,MBq). The machinery is validated but the effect stays invisible on this
+phantom; a visible randoms demonstration needs a contrast phantom, which is why the
+NEMA study (Section~\ref{sec:nema}) carries it. (Drivers and figures under
+\code{air\_bgo\_1MBq/} and \code{air\_bgo\_10MBq/}.)
 
 \section{Attenuation (water, trues + AC)}
 
@@ -138,12 +181,16 @@ narrow-beam $\mu$ is exactly the value to correct with) twice: without correctio
 ($\text{mult}=1$) and with ($\text{mult}=a$, $\text{sens}=A^{\!\top}(a)$).
 
 Without correction the image cups severely (Fig.~\ref{fig:att}): the reconstructed
-centre/edge ratio is $0.26$, just above the line-integral prediction
-$\exp(-\mu\,2R)=0.215$ (the small excess is finite-resolution smearing), and the rim
-is $\sim\!2.9\times$ the centre. The correction inverts it, recovering the centre by
-$\sim\!4.6\times$ to a centre/edge of $0.80$ --- the residual being the same measure
-tilt seen in vacuum. Attenuation, unlike the additive backgrounds, is multiplicative
-and radially structured, so the sphere displays it fully.
+centre/edge ratio is $\approx 0.4$, above the line-integral prediction
+$\exp(-\mu\,2R)=0.215$ (the excess is finite-resolution smearing), with the rim
+$\sim\!3\times$ the centre. The correction inverts it to a flat interior ---
+centre/edge $\approx 1.1$, the inside recovered to within a few percent of uniform
+(normalized $0.87$--$1.03$), the small residual being the measure tilt seen in
+vacuum. This is a cleaner recovery than the original coarse-grid MLEM run (which
+reached only $0.80$): the locked recipe, with the De Pierro quadratic prior holding
+the centre stable where $A^{\!\top}(a)$ is weakest, flattens the sphere fully.
+Attenuation, unlike the additive backgrounds, is multiplicative and radially
+structured, so the sphere displays it fully.
 
 \begin{figure}[t]
   \centering
@@ -186,16 +233,20 @@ lesson: smoothing must respect the real edges of the distribution.
   \label{fig:sino}
 \end{figure}
 
-\paragraph{Result.} With the corrected model the scatter correction is sound and its
-action is physical, but structured rather than uniform (Fig.~\ref{fig:scat}, and the
-zoned diagnosis \code{att\_scatter\_zones.py}): essentially no change in the
-degenerate core; a small positive ring just inside the rim, where the correction
-restores edge contrast the scatter had filled in; and strong removal in the
-pure-scatter far halo ($-78\%$) and corners ($-95\%$). The global profile distance to
-the gold standard improves from $0.072$ to $0.060$. As with randoms, the interior
-degeneracy plus interior-mean normalization keep the \emph{visible} change small ---
-the three radial profiles nearly overlap --- even though the correction is doing
-exactly the right thing.
+\paragraph{Result.} The scatter model calibrates exactly to the flagged total
+($3{,}964{,}440$ events) and its action is physical but, on this phantom at the locked
+recipe, almost entirely confined to where scatter dominates (Fig.~\ref{fig:scat}, and
+the zoned diagnosis \code{att\_scatter\_zones.py}): the whole sphere interior --- core,
+mid, both edges --- moves by under $0.1\%$, while the pure-scatter far halo is removed
+by $-9\%$ and the corners by $\sim\!-84\%$ ($0.032\to0.005$). The radial-profile
+distance to the gold standard is unchanged ($0.143$ corrected versus $0.143$
+uncorrected): inside the sphere the scatter is degenerate with the source and the
+interior-mean normalization divides out whatever uniform pedestal survives, so the
+three profiles overlap. The correction is doing exactly the right thing --- subtracting
+scatter where it lives --- but the uniform sphere cannot \emph{display} it. (At the
+finer grid the correction is even more invisible than the original coarse run, which
+had seen a small edge ring and a profile-distance improvement; the stronger smoothing
+and the better-resolved degeneracy erase it.)
 
 \begin{figure}[t]
   \centering
@@ -208,6 +259,111 @@ exactly the right thing.
   \label{fig:scat}
 \end{figure}
 
+\section{A contrast phantom: NEMA image quality and the source of the noise}
+\label{sec:nema}
+
+The recurring limitation above is the phantom: a uniform sphere cannot display a
+correction that is degenerate with it. We therefore move to a NEMA NU-2
+image-quality phantom --- a $R=100$\,mm body cylinder containing six hot spheres
+(diameters $10,13,17,22,28,37$\,mm) on a $57.2$\,mm ring at a $4{:}1$
+sphere-to-background activity ratio --- reconstructed in vacuum on the same BGO
+scanner (\code{nema\_la\_air\_bgo}, low activity, $2.9\%$ randoms; the phantom,
+its sphere and background ROIs, and the truth map are built by
+\code{src/nema\_phantom.jl}). The figure of merit is the contrast recovery
+coefficient
+\begin{equation}
+  \text{CRC} = \frac{\bar x_{\text{sphere}}/\bar x_{\text{bg}} - 1}{R_{\text{true}} - 1},
+  \qquad R_{\text{true}} = 4,
+  \label{eq:crc}
+\end{equation}
+($100\%$ = full contrast recovered), paired with the background coefficient of
+variation $\text{CoV}=\sigma/\mu$ over a uniform region, the standard NEMA
+noise measure.
+
+\paragraph{The background is mottled, and it is not the obvious culprits.} An
+early-stopped MLEM of this phantom shows the spheres but on a heavily speckled
+background --- a per-voxel CoV of $\approx0.30$, far above the clinical NEMA range
+($\sim\!5$--$15\%$). We chased it through every knob in turn, each as a saved scan
+script, and the first two suspects came up empty:
+\begin{itemize}
+  \item \emph{Counts / Poisson statistics --- not the driver.} Subsampling the true
+        coincidences from $N/8$ to $N$ at fixed regularization leaves the
+        background CoV essentially flat ($0.32\!\to\!0.30$ over an $8\times$ range),
+        where Poisson noise alone would change it by $\sqrt8\approx2.8\times$. More
+        events do not quiet this background (\code{scan\_counts.jl}).
+  \item \emph{Voxel size --- not the driver.} Scanning the voxel from $1.5$ to
+        $4$\,mm at a fixed post-filter leaves the CoV flat ($0.32\!\to\!0.29$, finer
+        slightly worse), so the mottle is not a grid-sampling effect
+        (\code{scan\_voxel.jl}).
+\end{itemize}
+What the noise \emph{does} track is the iteration count: the CoV grows roughly
+linearly with iteration while the mean converges, the signature of an ill-posed
+problem whose late iterations fit high-frequency detail (\code{scan\_niter.jl}).
+Regularization bounds that growth, and on the small-sphere CRC-versus-CoV frontier
+a quadratic smoothness prior, an edge-preserving Huber prior
+(\code{penalized\_mlem} / \code{osl\_mlem}, Part~I), and a plain Gaussian
+post-filter on an early-stopped MLEM all sit on nearly the same curve
+(Fig.~\ref{fig:nema-method}): post-filter $\approx$ Huber $>$ quadratic $\approx$
+unfiltered MLEM. Edge preservation gives no clear gain here because the small
+spheres are low-contrast --- there are no strong edges for the Huber threshold to
+protect. Regularization controls the noise but does not explain it; the CRC/CoV
+trade is also degenerate (it rewards over-smoothing), so it cannot be free-optimized.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.78\linewidth]{nema_la_air_bgo_method_compare}
+  \caption{Small-sphere contrast recovery versus background noise for four noise
+  controls at matched settings. Post-filtered MLEM and the edge-preserving Huber
+  prior trace nearly the same frontier; the quadratic prior and unfiltered MLEM are
+  comparable. For these low-contrast spheres edge preservation gives no clear
+  advantage --- the noise is ill-conditioning that any of the four can bound, so
+  the method choice is close to a wash and we simply lock one for the studies.}
+  \label{fig:nema-method}
+\end{figure}
+
+\paragraph{The source: the sensitivity image is a Monte-Carlo estimate.} The knob
+that was held fixed in all of the above is the one that mattered. The sensitivity
+$\sens=A^{\!\top}(1)$ is not analytic here: it is back-projected from a finite
+sample of $n_{\text{sens}}$ geometric LORs drawn on the scanner surface, so it
+carries its own $\sim\!1/\sqrt{n_{\text{sens}}}$ Monte-Carlo sampling noise --- and
+$\sens$ sits in the \emph{denominator} of every MLEM update, where that noise is
+amplified. Varying $n_{\text{sens}}$ with everything else fixed confirms it
+(Fig.~\ref{fig:nema-nsens}, \code{scan\_nsens.jl}): the background CoV falls as
+$0.30\,(20\text{M})\to0.18\,(50\text{M})\to0.12\,(100\text{M})\to0.10\,(200\text{M})
+\to0.08\,(500\text{M})$, tracking the $1/\sqrt{n_{\text{sens}}}$ line and staying a
+fixed $\approx5\times$ above the sensitivity image's own CoV --- the conditioning
+amplification. So the noise \emph{is} statistics, but the statistics of the
+sensitivity estimate (held at $20$\,M LORs in every earlier scan), not of the data.
+The fix is to compute $\sens$ from a large LOR sample; it is a one-time cost. At
+$500$\,M the background settles near a $0.03$--$0.06$ floor and the six spheres
+stand out cleanly with CRC rising from $43\%$ on the smallest to $106\%$ on the
+largest (Fig.~\ref{fig:nema-spheres}); the low-$n_{\text{sens}}$ CRC was itself
+inflated by the sensitivity mottle. The lesson generalizes: for a continuous
+scanner whose normalization \emph{is} the geometric sensitivity, normalization is a
+sizeable Monte-Carlo job, not a cheap analytic prefactor.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.62\linewidth]{nema_la_air_bgo_nsens_scan}
+  \caption{The background noise is the sensitivity-image sampling. Background CoV
+  and the sensitivity-image CoV versus the number of sensitivity LORs, everything
+  else fixed. Both fall as $1/\sqrt{n_{\text{sens}}}$; the background tracks the
+  sensitivity CoV at a constant $\approx5\times$ amplification (the MLEM
+  ill-conditioning). The $20$\,M sampling used in the count/voxel scans was the
+  hidden noise source.}
+  \label{fig:nema-nsens}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{nema_la_air_bgo_spheres_500M}
+  \caption{NEMA reconstruction with the sensitivity sampled at $500$\,M LORs (MLEM,
+  $6$\,mm post-filter). Left: the central slice, all six hot spheres clean on a
+  quiet background (CoV $0.08$). Right: contrast recovery versus sphere diameter,
+  $43\%$ (smallest) to $106\%$ (largest).}
+  \label{fig:nema-spheres}
+\end{figure}
+
 \section{Synthesis}
 
 \begin{table}[t]
@@ -216,10 +372,10 @@ exactly the right thing.
     \toprule
     Effect & Character & On the uniform sphere & Validated \\
     \midrule
-    Normalization & geometric, $n=1$    & flat to $\pm 8\%$ (measure tilt) & yes \\
-    Randoms       & smooth additive     & degenerate, invisible            & yes (words) \\
+    Normalization & geometric, $n=1$    & flat in noise (CoV $0.10$), $\sim\!25\%$ measure tilt & yes \\
+    Randoms       & smooth additive     & degenerate, invisible            & yes \\
     Attenuation   & multiplicative      & strong cupping, fully corrected  & yes \\
-    Scatter       & smooth additive     & degenerate; structured residual  & yes \\
+    Scatter       & smooth additive     & degenerate; far-field residual   & yes \\
     \bottomrule
   \end{tabular}
   \caption{The four corrections on the uniform sphere. The additive backgrounds
@@ -236,12 +392,16 @@ flagged totals, and the structured, physical action is visible in absolute,
 un-normalized terms --- but the phantom cannot \emph{show} them. Attenuation is the
 exception precisely because it is multiplicative and radially structured.
 
-The clear next step is a \textbf{contrast phantom} (a cylinder with hot and cold
-regions, then a NEMA image-quality phantom), where scatter fills cold regions and
-randoms lift contrast, so the corrections produce a visible, quantifiable
-improvement. Two smaller side-studies remain self-contained: relaxing the energy
-window on the water dataset (which would raise the $0.13$ interior scatter fraction),
-and settling which LOR measure is the correct one for the $\pm 8\%$ normalization
-tilt.
+The NEMA contrast phantom (Section~\ref{sec:nema}) is where the sphere's
+degeneracy lifts: it displays the spheres, gives a quantitative CRC, and --- the
+main result of this report --- exposes the reconstruction noise as the Monte-Carlo
+sampling of the sensitivity image, fixable by sampling $\sens$ from a large LOR set
+rather than by more data or a finer grid. The natural continuation is to run that
+same phantom at high activity (a $22.9\%$-randoms twin of the $2.9\%$ case shown
+here) at a single locked reconstruction configuration, so the randoms correction is
+finally exercised on an object that can show it. Two smaller side-studies remain
+self-contained: relaxing the energy window on the water dataset (which would raise
+the $0.13$ interior scatter fraction), and settling which LOR measure is the correct
+one for the $\pm 8\%$ normalization tilt.
 
 \end{document}

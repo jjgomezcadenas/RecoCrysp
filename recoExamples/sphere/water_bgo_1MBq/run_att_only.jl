@@ -55,14 +55,27 @@ sens_ac   = sensitivity_image(gxs, gxe, n, org, vs; weights = to_dev(a_sens),
 x0 = Float32.(sens_ac .> 0)
 
 xs_d, xe_d = to_dev(xs_t), to_dev(xe_t)
-reco(sens; mult = nothing) = Array(mlem(
+# attenuation case: OSL Huber diverges here (Aᵀ(a) small at centre), so use the
+# monotone De Pierro quadratic-smoothness prior (penalized_mlem). "huber"/"mlem"
+# branches kept for the vacuum/contrast and unregularized paths.
+method = lowercase(get(cfg["recon"], "method", "quadratic"))
+if method == "quadratic"
+    prior = QuadraticSmoothnessPrior(Float32(cfg["recon"]["quad_beta"]))
+    runrec(model) = penalized_mlem(model, x0, prior; niter = niter); post = identity
+elseif method == "huber"
+    prior = HuberPrior(Float32(cfg["recon"]["huber_beta"]), Float32(cfg["recon"]["huber_delta"]))
+    runrec(model) = osl_mlem(model, x0, prior; niter = niter); post = identity
+else
+    fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
+    runrec(model) = mlem(model, x0; niter = niter); post = img -> gaussian_postfilter(img, fwhm, vs)
+end
+reco(sens; mult = nothing) = post(Array(runrec(
     ListmodePoissonModel(xs_d, xe_d, sens; img_origin = org, voxsize = vs,
-                         mult = mult === nothing ? nothing : to_dev(mult)),
-    x0; niter = niter))
+                         mult = mult === nothing ? nothing : to_dev(mult)))))
 
 rec_noac = reco(sens_noac)
 rec_ac   = reco(sens_ac; mult = a_ev)
-println("reconstructed noac / ac"); flush(stdout)
+println("reconstructed noac / ac [$method]"); flush(stdout)
 
 # radial profiles, each normalized to its own sphere-interior mean
 cx = Float32[org[1] + (i - 1) * vs[1] for i in 1:n[1]]

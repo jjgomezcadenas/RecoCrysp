@@ -14,13 +14,14 @@ afov_mm          = 1024.0 # 2 * half_length 512 mm
 radius_mm = 80.0          # sphere R = 8 cm at the origin
 
 [grid]                    # covers the sphere (+ margin), not the whole AFOV
-n       = [45, 45, 45]
-voxsize = 4.0             # mm, isotropic -> extent +-88 mm (uniform sphere: no fine
-                          #    detail to resolve, so a coarse grid lowers per-voxel noise)
+n       = [71, 71, 71]
+voxsize = 2.5             # mm, isotropic -> extent +-87.5 mm. Same resolution as the
+                          #    NEMA study (locked recipe), not the old coarse 4 mm.
 
-[sens]                    # independent geometric LORs for the sensitivity image
-n_sample_lors = 20000000
-seed          = 1
+[sens]                    # independent geometric LORs for the sensitivity image.
+n_sample_lors = 500000000 # 500 M: the sensitivity Aᵀ(1) is itself a Monte-Carlo
+seed          = 1         #    estimate; the NEMA study showed its ~1/sqrt(nsens)
+                          #    sampling noise (not Poisson) is the background mottle.
 
 [norm]                    # emission-based sensitivity (DOI + emission measure)
 r_inner_mm    = 387.0     # crystal inner radius
@@ -28,8 +29,14 @@ wall_mm       = 37.0      # crystal thickness (DOI shell 387 -> 424 mm)
 att_length_mm = 10.4      # BGO absorption length at 511 keV
 fov_radius_mm = 88.0      # emission region (covers the grid)
 
-[recon]
-niter = 10
+[recon]                   # locked recipe: edge-preserving Huber (OSL MAP-EM), the
+niter       = 30          #    NEMA frontier setting -- bounds the noise so we iterate
+method      = "huber"     #    further to converge the contrast. "huber" | "mlem".
+huber_beta  = 1000.0      # Huber strength (NEMA sweet spot)
+huber_delta = 0.05        # edge threshold (NEMA value)
+
+[postfilter]
+fwhm_mm = 8.0             # only used when method="mlem"
 
 [backend]                 # device for the projector/MLEM compute
 device = "metal"            # "cpu" or "metal" (Apple GPU); the same run, one knob.

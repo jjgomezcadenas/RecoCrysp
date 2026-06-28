@@ -64,9 +64,13 @@ sync_dev()
 x0       = Float32.(sens .> 0)
 println("sensitivity built over $nsens LORs ($(round(time() - t0; digits = 1)) s)"); flush(stdout)
 
-# --- reconstruct (generic listmode MLEM; counts = 1, mult = 1) ------------------
-# per-iteration timing so the run's progress is visible (and gives the per-iter
-# cost for the CPU-vs-Metal comparison); sync_dev makes GPU timing honest.
+# --- reconstruct (locked recipe: edge-preserving Huber via OSL MAP-EM) ----------
+# Same Huber prior/values as the NEMA study (counts = 1, mult = 1, vacuum). The
+# `method = "mlem"` branch keeps the unregularized + post-filter path available.
+# per-iteration timing so the run's progress is visible; sync_dev makes GPU timing
+# honest.
+println("raw sens: mean $(round(sum(sens)/length(sens); sigdigits=3)), " *
+        "max $(round(maximum(sens); sigdigits=3))"); flush(stdout)
 tprev = Ref(time())
 function progress(k, x)
     sync_dev()
@@ -74,10 +78,20 @@ function progress(k, x)
     println("  iter $k   $(round(now - tprev[]; digits = 2)) s"); flush(stdout)
     tprev[] = now
 end
-model = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs)
-tmlem = time()
-rec   = Array(mlem(model, x0; niter = Int(cfg["recon"]["niter"]), callback = progress))
-println("MLEM done ($(round(time() - tmlem; digits = 1)) s)"); flush(stdout)
+model  = ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs)
+niter  = Int(cfg["recon"]["niter"])
+method = lowercase(get(cfg["recon"], "method", "huber"))
+tmlem  = time()
+if method == "huber"
+    prior = HuberPrior(Float32(cfg["recon"]["huber_beta"]), Float32(cfg["recon"]["huber_delta"]))
+    rec   = Array(osl_mlem(model, x0, prior; niter = niter, callback = progress))
+    rtag  = "Huber β=$(cfg["recon"]["huber_beta"]) δ=$(cfg["recon"]["huber_delta"])"
+else
+    fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
+    rec  = gaussian_postfilter(Array(mlem(model, x0; niter = niter, callback = progress)), fwhm, vs)
+    rtag = "MLEM + $(fwhm)mm post-filter"
+end
+println("recon done [$rtag] ($(round(time() - tmlem; digits = 1)) s)"); flush(stdout)
 
 # --- flatness diagnostic: normalized mean activity vs radius inside the sphere --
 cx = Float32[org[1] + (i - 1) * vs[1] for i in 1:n[1]]
@@ -85,8 +99,10 @@ cy = Float32[org[2] + (j - 1) * vs[2] for j in 1:n[2]]
 cz = Float32[org[3] + (k - 1) * vs[3] for k in 1:n[3]]
 rr = Float32[sqrt(cx[i]^2 + cy[j]^2 + cz[k]^2) for i in 1:n[1], j in 1:n[2], k in 1:n[3]]
 inner = rr .< (R - 2 * vs[1])              # well inside, away from the edge
-recn  = rec ./ (sum(rec[inner]) / count(inner))   # normalize to interior mean
-println("interior (r < R-2vox): mean = 1.0 by constr., CoV = ",
+raw_in = sum(rec[inner]) / count(inner)
+recn  = rec ./ raw_in                              # normalize to interior mean
+println("interior (r < R-2vox): raw mean = $(round(raw_in; sigdigits=3)) " *
+        "(cf. Huber δ=$(cfg["recon"]["huber_delta"])), CoV = ",
         round(sqrt(sum(abs2, recn[inner] .- 1) / count(inner)); digits = 3))
 
 # radial profile of the normalized reconstruction (bins of width one voxel)

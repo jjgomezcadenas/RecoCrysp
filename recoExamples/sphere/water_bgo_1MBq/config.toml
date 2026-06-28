@@ -19,15 +19,22 @@ radius_mm = 80.0
 mu_per_cm = 0.096          # linear attenuation of water at 511 keV (narrow-beam; physical constant)
 
 [grid]
-n       = [51, 51, 51]
-voxsize = 4.0              # -> extent +-100 mm
+n       = [81, 81, 81]
+voxsize = 2.5             # -> extent +-100 mm. Same resolution as the NEMA study.
 
 [sens]
-n_sample_lors = 20000000
-seed          = 1
+n_sample_lors = 500000000 # 500 M (locked recipe): Aᵀ(a) sampled well enough that its
+seed          = 1         #    Monte-Carlo noise is below the floor (NEMA finding).
 
-[recon]
-niter = 10
+[recon]                   # OSL Huber DIVERGES on the attenuation case (Aᵀ(a) is
+niter       = 30          #    small at the centre, so the OSL denominator blows up);
+method      = "quadratic" #    use the monotone De Pierro quadratic-smoothness prior.
+quad_beta   = 1000.0      # De Pierro QuadraticSmoothnessPrior strength (penalized_mlem)
+huber_beta  = 1000.0      # Huber path kept for reference (unused when method="quadratic")
+huber_delta = 0.05
+
+[postfilter]
+fwhm_mm = 8.0             # only used when method="mlem"
 
 [scatter]                  # smoothed scatter model in sinogram coords (run_att_scatter.jl)
 n_sr      = 40             # radial-offset bins (over [0, sr_max_mm])

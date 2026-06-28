@@ -1,14 +1,15 @@
 # Randoms (high end): reconstruct the 10 MBq vacuum sphere three ways:
 #   gold    : true coincidences only (truth==0), no contamination
 #   uncorr  : all prompts (trues+randoms), no correction  -> biased
-#   corr    : all prompts, contamination = singles-based randoms estimate
+#   corr    : all prompts, contamination = sinogram randoms model
 # Same setup as air_bgo_1MBq, but here randoms are ~8.7% of prompts (10x the 1 MBq
 # run) -- the high end of the randoms-scaling series, where any bias should be
 # largest. Whether that bias is actually visible on a centered uniform sphere is
 # the open question this three-way comparison measures (plot.py prints the
 # numbers). Vacuum, so mult = 1 and the only physics is the randoms background.
-# The estimate r_e = 2tau S_i S_j is built from the singles and calibrated so its
-# total equals the number of flagged random coincidences.
+# The randoms model is the smoothed local randoms fraction in sinogram coords
+# (truth==2 flag, background_estimate) — singles-free, same as the NEMA study —
+# calibrated to the flagged random total. Locked recipe (500 M sens, 2.5 mm, Huber).
 #
 #   julia -t auto --project=recoExamples recoExamples/sphere/air_bgo_10MBq/run.jl
 # Writes air_bgo_10MBq.npz (read by plot.py).
@@ -43,24 +44,40 @@ gxs, gxe = to_dev.(sample_lors(sc, nsens; rng = MersenneTwister(Int(cfg["sens"][
 sens = sensitivity_image(gxs, gxe, n, org, vs; scale = length(c) / nsens)
 x0 = Float32.(sens .> 0)
 
-# randoms estimate per PROMPT event, calibrated to the flagged random total
-S = singles_element_counts(cfg["data"]["singles"];
-                           n_phi = Int(cfg["scanner"]["n_phi"]), n_z = Int(cfg["scanner"]["n_z"]))
-r = randoms_estimate(S, c.elem1, c.elem2; n_phi = Int(cfg["scanner"]["n_phi"]),
-                     tau_ns = Float64(cfg["randoms"]["tau_ns"]), total = Float64(n_rand))
-println("randoms estimate: sum = $(round(sum(r); digits=0)) (target $n_rand), " *
+# randoms model per PROMPT event: smoothed local randoms fraction in sinogram
+# coords (truth==2), singles-free, calibrated to the flagged random total.
+rmask = is_random(c)
+s_r, z_m, dz = lor_sinogram_coords(c.xstart, c.xend)
+rg = cfg["randoms"]
+r = background_estimate(s_r, z_m, dz, rmask;
+        n_sr = Int(rg["n_sr"]), n_zm = Int(rg["n_zm"]), n_dz = Int(rg["n_dz"]),
+        span_sr = (0.0f0, Float32(rg["sr_max_mm"])),
+        span_zm = (-Float32(rg["zm_max_mm"]), Float32(rg["zm_max_mm"])),
+        span_dz = (-Float32(rg["dz_max_mm"]), Float32(rg["dz_max_mm"])),
+        smooth = (Float64(rg["smooth_sr"]), Float64(rg["smooth_zm"]), Float64(rg["smooth_dz"])),
+        total = Float64(n_rand))
+println("randoms model: sum = $(round(sum(r); digits=0)) (target $n_rand), " *
         "mean/event = $(round(sum(r)/length(r); sigdigits=2))"); flush(stdout)
 
+# locked recipe: edge-preserving Huber (OSL MAP-EM), NEMA values; "mlem" branch keeps
+# the unregularized + post-filter path.
+method = lowercase(get(cfg["recon"], "method", "huber"))
+if method == "huber"
+    prior = HuberPrior(Float32(cfg["recon"]["huber_beta"]), Float32(cfg["recon"]["huber_delta"]))
+    runrec(model) = osl_mlem(model, x0, prior; niter = niter); post = identity
+else
+    fwhm = Float64(get(get(cfg, "postfilter", Dict()), "fwhm_mm", 0.0))
+    runrec(model) = mlem(model, x0; niter = niter); post = img -> gaussian_postfilter(img, fwhm, vs)
+end
 allx, allxe = to_dev(c.xstart), to_dev(c.xend)
-reco(xs, xe; contam = nothing) = Array(mlem(
+reco(xs, xe; contam = nothing) = post(Array(runrec(
     ListmodePoissonModel(xs, xe, sens; img_origin = org, voxsize = vs,
-                         contamination = contam === nothing ? nothing : to_dev(contam)),
-    x0; niter = niter))
+                         contamination = contam === nothing ? nothing : to_dev(contam)))))
 
 rec_gold   = reco(to_dev(c.xstart[:, tmask]), to_dev(c.xend[:, tmask]))
 rec_uncorr = reco(allx, allxe)
 rec_corr   = reco(allx, allxe; contam = r)
-println("reconstructed gold / uncorr / corr"); flush(stdout)
+println("reconstructed gold / uncorr / corr [$method]"); flush(stdout)
 
 # radial profiles, each normalized to the sphere-interior mean
 cx = Float32[org[1] + (i - 1) * vs[1] for i in 1:n[1]]
