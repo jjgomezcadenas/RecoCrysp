@@ -6,7 +6,7 @@
 #   uncorr  : trues+scatter, no scatter correction          -> biased
 #   corr    : trues+scatter, contamination = scatter model  -> should -> gold
 # The scatter model s_i = S~/P~ is the smoothed local scatter fraction in
-# sinogram coordinates (scatter_estimate), calibrated to the flagged scatter count.
+# sinogram coordinates (background_estimate), calibrated to the flagged scatter count.
 #
 #   julia -t auto --project=recoExamples recoExamples/sphere/water_bgo_1MBq/run_att_scatter.jl
 # Writes water_bgo_1MBq_att_scatter.npz (read by att_scatter_plot.py).
@@ -49,7 +49,7 @@ a_nr = attenuation_factors(xs_nr, xe_nr; R = R, mu = mu_mm)
 # scatter model: smoothed local scatter fraction in sinogram coords, summing to n_scat
 s_r, z_m, dz = lor_sinogram_coords(xs_nr, xe_nr)
 sg = cfg["scatter"]
-s_est = scatter_estimate(s_r, z_m, dz, scat_in_nr;
+s_est = background_estimate(s_r, z_m, dz, scat_in_nr;
                          n_sr = Int(sg["n_sr"]), n_zm = Int(sg["n_zm"]), n_dz = Int(sg["n_dz"]),
                          span_sr = (0.0f0, Float32(sg["sr_max_mm"])),
                          span_zm = (-Float32(sg["zm_max_mm"]), Float32(sg["zm_max_mm"])),

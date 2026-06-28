@@ -3,6 +3,8 @@
 # a_i = exp(-mu*chord) through the sphere) and run_att_scatter.jl (adds the
 # scatter background, ~17%, as the contamination term; randoms ~1% dropped).
 
+tag = "water_bgo_1MBq"            # output stem for tools/sinogram_dump.jl
+
 [data]
 lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/sphere_water_bgo_1MBq/lors_det.h5"
 

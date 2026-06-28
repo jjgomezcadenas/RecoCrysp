@@ -1,15 +1,16 @@
-# Scatter contamination estimate from the ground-truth flags.
+# Smooth background (contamination) estimate from the ground-truth flags.
 #
-# The flagged scatter events (truth==1) are samples of the scatter distribution.
-# We build a SMOOTH scatter model from them (like a single-scatter simulation
-# produces a smooth sinogram), not an event-by-event subtraction. Each LOR is
-# reduced to sinogram coordinates (radial offset s_r, axial midpoint z_m,
-# obliquity dz; azimuth drops out for a centred phantom), scatter and prompts are
-# histogrammed and smoothed there, and the per-event background is the smoothed
-# local scatter fraction
-#   s_i = S~_b(i) / P~_b(i),
-# which sums to the scatter total by construction. Feeds `contamination` in
-# ListmodePoissonModel, same per-event convention as the randoms estimate.
+# A flagged background class -- scatter (truth==1) OR randoms (truth==2) -- gives
+# samples of that background's distribution. We build a SMOOTH model from them
+# (like a single-scatter simulation produces a smooth sinogram), not an
+# event-by-event subtraction. Each LOR is reduced to sinogram coordinates (radial
+# offset s_r, axial midpoint z_m, obliquity dz; azimuth drops out for a centred
+# phantom), the background subset and all prompts are histogrammed and smoothed
+# there, and the per-event background is the smoothed local background fraction
+#   b_i = B~_b(i) / P~_b(i),
+# which sums to the background total by construction. Feeds `contamination` in
+# ListmodePoissonModel. Class-agnostic: pass the scatter mask for scatter, the
+# randoms mask for randoms.
 
 """
     lor_sinogram_coords(xs, xe) -> (s_r, z_m, dz)
@@ -69,11 +70,11 @@ end
 
 _binidx(v, lo, hi, n) = clamp(floor(Int, (v - lo) / (hi - lo) * n) + 1, 1, n)
 
-# Histogram the scatter subset and all prompts on the sinogram grid over the given
-# per-axis `(lo,hi)` spans (out-of-range events clamp into the edge bins -- the far
-# tails are nearly empty). Shared by scatter_estimate and scatter_sinograms so they
-# always bin identically.
-function _sino_hist(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz, span_sr, span_zm, span_dz)
+# Histogram the background subset and all prompts on the sinogram grid over the
+# given per-axis `(lo,hi)` spans (out-of-range events clamp into the edge bins --
+# the far tails are nearly empty). Shared by background_estimate and
+# background_sinograms so they always bin identically.
+function _sino_hist(s_r, z_m, dz, bg_mask; n_sr, n_zm, n_dz, span_sr, span_zm, span_dz)
     lo_r, hi_r = span_sr; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
     S = zeros(Float64, n_sr, n_zm, n_dz); P = zeros(Float64, n_sr, n_zm, n_dz)
     @inbounds for i in eachindex(s_r)
@@ -81,27 +82,28 @@ function _sino_hist(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz, span_sr, span_zm,
         bj = _binidx(z_m[i], lo_z, hi_z, n_zm)
         bk = _binidx(dz[i], lo_d, hi_d, n_dz)
         P[bi, bj, bk] += 1
-        scat_mask[i] && (S[bi, bj, bk] += 1)
+        bg_mask[i] && (S[bi, bj, bk] += 1)
     end
     return S, P, span_sr, span_zm, span_dz
 end
 
 """
-    scatter_estimate(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+    background_estimate(s_r, z_m, dz, bg_mask; n_sr, n_zm, n_dz,
                      span_sr, span_zm, span_dz, smooth, total=nothing) -> Vector{Float32}
 
-Per-event scatter background `s_i` for the prompt LORs whose sinogram coordinates
-are `s_r,z_m,dz` (length N), `scat_mask` flagging which of them are scatter. Both
-the scatter subset and all prompts are histogrammed on an `n_sr×n_zm×n_dz` grid
-over the per-axis `(lo,hi)` spans, smoothed with the per-axis widths `smooth`
-(3-tuple, in bins; an axis with 0 is left sharp -- use 0 for `s_r` to keep the
-scatter edge at `s_r=R`), and `s_i` is the smoothed local scatter fraction `S~/P~`
-at each event's bin. If `total` is given the result is rescaled to sum to it.
+Per-event background `b_i` for the prompt LORs whose sinogram coordinates are
+`s_r,z_m,dz` (length N), `bg_mask` flagging which of them belong to the background
+class (scatter or randoms). Both the background subset and all prompts are
+histogrammed on an `n_sr×n_zm×n_dz` grid over the per-axis `(lo,hi)` spans,
+smoothed with the per-axis widths `smooth` (3-tuple, in bins; an axis with 0 is
+left sharp -- use 0 for `s_r` to keep a background edge at `s_r=R`), and `b_i` is
+the smoothed local background fraction `B~/P~` at each event's bin. If `total` is
+given the result is rescaled to sum to it.
 """
-function scatter_estimate(s_r, z_m, dz, scat_mask;
+function background_estimate(s_r, z_m, dz, bg_mask;
                           n_sr, n_zm, n_dz, span_sr, span_zm, span_dz,
                           smooth, total = nothing)
-    S, P = _sino_hist(s_r, z_m, dz, scat_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
+    S, P = _sino_hist(s_r, z_m, dz, bg_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
                       span_sr = span_sr, span_zm = span_zm, span_dz = span_dz)
     S = _smooth3(S, smooth); P = _smooth3(P, smooth)
     lo_r, hi_r = span_sr; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
@@ -119,18 +121,18 @@ function scatter_estimate(s_r, z_m, dz, scat_mask;
 end
 
 """
-    scatter_sinograms(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+    background_sinograms(s_r, z_m, dz, bg_mask; n_sr, n_zm, n_dz,
                       span_sr, span_zm, span_dz, smooth)
         -> (S, P, S_smooth, P_smooth, span_sr, span_zm, span_dz)
 
-The scatter and prompt sinogram histograms (3D, `n_sr×n_zm×n_dz`) and their
+The background and prompt sinogram histograms (3D, `n_sr×n_zm×n_dz`) and their
 smoothed versions, plus each axis span. Same binning/smoothing as
-[`scatter_estimate`](@ref); the local scatter fraction the model applies is
-`S_smooth ./ P_smooth`. For inspecting the scatter model.
+[`background_estimate`](@ref); the local background fraction the model applies is
+`B_smooth ./ P_smooth`. For inspecting the background model.
 """
-function scatter_sinograms(s_r, z_m, dz, scat_mask; n_sr, n_zm, n_dz,
+function background_sinograms(s_r, z_m, dz, bg_mask; n_sr, n_zm, n_dz,
                            span_sr, span_zm, span_dz, smooth)
-    S, P = _sino_hist(s_r, z_m, dz, scat_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
+    S, P = _sino_hist(s_r, z_m, dz, bg_mask; n_sr = n_sr, n_zm = n_zm, n_dz = n_dz,
                       span_sr = span_sr, span_zm = span_zm, span_dz = span_dz)
     return S, P, _smooth3(S, smooth), _smooth3(P, smooth), span_sr, span_zm, span_dz
 end
