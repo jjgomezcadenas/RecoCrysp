@@ -93,6 +93,83 @@ $\ell(\xv^{k+1})\ge\ell(\xv^k)$: the negative log-likelihood
 \code{neg\_log\_likelihood} is monotonically non-increasing, as
 Section~\ref{sec:mlem} asserts.
 
+\section{De Pierro's surrogate for quadratic priors}
+\label{app:depierro}
+
+This appendix derives the closed-form penalized update
+\eqref{eq:reg-depierro} from the MAP objective
+$\Phi(\xv)=f(\xv)+\beta R(\xv)$ for a quadratic prior, following De
+Pierro~\cite{depierro1995}. The likelihood part $f$ is handled by the EM surrogate
+of Appendix~\ref{app:em}: at the current iterate $\xv^k$ it is majorized by the
+separable
+\begin{equation}
+  Q_f(\xv\mid\xv^k) = \sum_j\bigl[\,t_j\log x_j - (\sensv)_j\,x_j\,\bigr] + \text{const},
+  \qquad
+  t_j = x_j^k\,\Aadj\!\Bigl(\code{mult}\odot\tfrac{\code{counts}}{\pred^k}\Bigr)_j,
+  \label{eq:app-dp-Qf}
+\end{equation}
+with $t_j$ the EM numerator \eqref{eq:reg-numerator}. The penalty must be made
+separable too.
+
+\subsection*{Separable surrogate for a quadratic penalty}
+
+Take the smoothness prior $R(\xv)=\tfrac12\sum_j\sum_{k\in\mathcal N_j}(x_j-x_k)^2$
+(unit weights; the intensity prior is the easier diagonal case). The coupling is
+through the difference $x_j-x_k$, which De Pierro rewrites about the current
+iterate as
+\begin{equation}
+  x_j-x_k
+  = \tfrac12\bigl[\,2x_j-(x_j^k+x_k^k)\,\bigr] - \tfrac12\bigl[\,2x_k-(x_j^k+x_k^k)\,\bigr],
+\end{equation}
+an average of two terms each depending on a single voxel. Convexity of the square,
+$\bigl(\tfrac12 a-\tfrac12 b\bigr)^2\le\tfrac12 a^2+\tfrac12 b^2$, then gives the
+separable upper bound
+\begin{equation}
+  (x_j-x_k)^2 \;\le\; \tfrac12\bigl[2x_j-(x_j^k+x_k^k)\bigr]^2
+                    + \tfrac12\bigl[2x_k-(x_j^k+x_k^k)\bigr]^2,
+  \label{eq:app-dp-ineq}
+\end{equation}
+with equality at $\xv=\xv^k$ (both bracketed terms become $x_j^k-x_k^k$ and the
+average is exact). Summing \eqref{eq:app-dp-ineq} over the symmetric neighbourhood
+defines a surrogate $\widetilde R(\xv\mid\xv^k)\ge R(\xv)$ that touches $R$ at
+$\xv^k$ and is a sum of one-voxel quadratics: collecting the terms in $x_j$,
+\begin{equation}
+  \widetilde R(\xv\mid\xv^k)
+  = \sum_j\Bigl[\,\tfrac12\gamma_j\,x_j^2 - c_j\,x_j\,\Bigr] + \text{const},
+  \qquad
+  \gamma_j = 2\beta\,w_j,
+  \quad
+  c_j = \beta\,(w_j x_j^k + m_j),
+  \label{eq:app-dp-Rtilde}
+\end{equation}
+where $w_j=\abs{\mathcal N_j}$ is the in-bounds neighbour count and
+$m_j=\sum_{k\in\mathcal N_j}x_k^k$ the neighbour sum at $\xv^k$ (the $\beta$
+reinstated). The intensity prior $\tfrac{\beta}{2}\norm{\xv-\bm z}^2$ is already
+separable, contributing $\gamma_j=\beta$, $c_j=\beta z_j$ directly.
+
+\subsection*{M-step}
+
+Maximizing the total surrogate $Q_f-\widetilde R$ over $x_j\ge0$ is again one
+problem per voxel. Setting the derivative to zero,
+\begin{equation}
+  \frac{t_j}{x_j} - (\sensv)_j - \gamma_j x_j + c_j = 0
+  \;\;\Longrightarrow\;\;
+  \gamma_j\,x_j^2 + \underbrace{\bigl[(\sensv)_j - c_j\bigr]}_{B_j}\,x_j - t_j = 0,
+\end{equation}
+a quadratic with $G_j=\gamma_j$ and $B_j=(\sensv)_j-c_j$. Substituting
+\eqref{eq:app-dp-Rtilde} gives exactly the coefficients of
+Table~\ref{tab:reg-priors}: $B_j=(\sensv)_j-\beta(w_jx_j^k+m_j)$, $G_j=2\beta w_j$
+for the smoothness prior and $B_j=(\sensv)_j-\beta z_j$, $G_j=\beta$ for the
+intensity prior. The non-negative root,
+\begin{equation}
+  x_j^{k+1} = \frac{-B_j+\sqrt{B_j^2+4G_jt_j}}{2G_j}
+            = \frac{2t_j}{\sqrt{B_j^2+4G_jt_j}+B_j},
+\end{equation}
+is \eqref{eq:reg-depierro}; the right-hand form is used in code because it stays
+finite as $G_j\to0$, where it returns $t_j/B_j=t_j/(\sensv)_j$ --- the MLEM update.
+Because the surrogate majorizes $\Phi$ and is tight at $\xv^k$, decreasing it
+decreases $\Phi$: the iteration is monotone.
+
 \section{Notation}
 \label{app:notation}
 \textit{(to be written: full glossary of symbols.)}

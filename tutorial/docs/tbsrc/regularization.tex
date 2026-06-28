@@ -1,0 +1,163 @@
+% tbsrc/regularization.tex — Regularized Reconstruction: MAP-EM
+% Status: written (first draft). Follows the "Beyond early stopping" note in
+% acceleration.tex. MAP objective f + beta R; De Pierro surrogate -> closed-form
+% penalized_mlem for quadratic priors (intensity, smoothness); OSL -> osl_mlem for
+% edge-preserving (Huber). Matches src/penalized.jl; De Pierro derivation in App.B.
+\section{Regularized Reconstruction: MAP-EM}
+\label{sec:regularization}
+
+Early stopping (Section~\ref{sec:acceleration:reg}) controls noise by halting the
+unregularized iteration before it fits the Poisson realization; it is blunt
+because one global iteration budget governs every region irrespective of its
+local statistics. The explicit alternative is \emph{maximum a posteriori} (MAP)
+reconstruction: minimize the penalized objective
+\begin{equation}
+  \Phi(\xv) \;=\; f(\xv) \;+\; \beta\,R(\xv),
+  \label{eq:reg-map}
+\end{equation}
+where $f$ is the negative Poisson log-likelihood of \eqref{eq:st-listmode}, $R$ is
+a prior penalizing roughness, and $\beta\ge0$ sets its strength ($\beta=0$
+recovers MLEM). The preconditioned-gradient view of Section~\ref{sec:mlem} makes
+this a small change in principle --- the prior's gradient simply adds to
+$\nabla f$ --- but the multiplicative update earns its non-negativity and
+monotonicity from the EM structure, and naively bolting a gradient onto it forfeits
+both. This section gives the two updates RecoCrysp implements in
+\code{penalized.jl} that keep what the EM structure provides: a closed-form,
+monotone update for \emph{quadratic} priors (De Pierro), and a One-Step-Late update
+for \emph{edge-preserving} priors (Huber).
+
+\subsection{Quadratic priors and the De Pierro update}
+\label{sec:reg:depierro}
+
+The obstacle is that $R$ couples neighbouring voxels, so its gradient mixes them
+and the per-voxel decoupling that gave MLEM its closed form (Appendix~\ref{app:em})
+is lost. De Pierro's surrogate~\cite{depierro1995} restores it: for a
+\emph{quadratic} $R$, a convexity argument (Appendix~\ref{app:depierro}) replaces
+the coupled penalty by a separable upper bound that is exact at the current
+iterate, so the M-step again solves one independent problem per voxel --- now a
+quadratic rather than a linear equation. Writing the ordinary EM numerator
+\begin{equation}
+  \\bm{t} \;=\; \xv_k \,\odot\, \Aadj\!\Bigl(\code{mult}\odot\frac{\code{counts}}{\pred_k}\Bigr)
+  \label{eq:reg-numerator}
+\end{equation}
+(the quantity MLEM divides by $\sensv$), the penalized M-step is the positive root
+of the per-voxel quadratic $G\,x^2 + B\,x - t = 0$,
+\begin{equation}
+  \xv_{k+1} \;=\; \frac{2\,\\bm{t}}{\sqrt{B^2 + 4\,G\,\\bm{t}}\;+\;B},
+  \label{eq:reg-depierro}
+\end{equation}
+where the prior enters \emph{only} through the coefficients $(B,G)$, listed in
+Table~\ref{tab:reg-priors}. The form makes the reduction to MLEM transparent: with
+$\beta=0$ the prior contributes $G=0$ and $B=\sensv$, and \eqref{eq:reg-depierro}
+collapses to $\xv_{k+1}=\\bm{t}/\sensv$, exactly \eqref{eq:ml-em}. The root is taken
+in the rationalized form $2t/(\sqrt{B^2+4Gt}+B)$ rather than
+$(-B+\sqrt{B^2+4Gt})/(2G)$ so that it stays well-defined as $G\to0$.
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Prior $R(\xv)$ & $B$ & $G$ \\
+    \midrule
+    none (MLEM)
+      & $\sensv$ & $0$ \\[2pt]
+    intensity $\tfrac{\beta}{2}\norm{\xv-\bm z}^2$
+      & $\sensv-\beta\,\bm z$ & $\beta$ \\[2pt]
+    smoothness $\tfrac{\beta}{2}\sum_j\sum_{k\in\mathcal N_j}(x_j-x_k)^2$
+      & $\sensv-\beta\,(\bm w\odot\xv_k+\bm m)$ & $2\beta\,\bm w$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{De Pierro coefficients $(B,G)$ for \eqref{eq:reg-depierro}, one entry
+    per prior in \code{penalized.jl}. For the smoothness prior $\mathcal N_j$ is
+    the 6-connected (face) neighbourhood, $\bm m_j=\sum_{k\in\mathcal N_j}x_k$ the
+    neighbour sum, and $\bm w_j=\abs{\mathcal N_j}\in\{3,\dots,6\}$ the in-bounds
+    neighbour count, both evaluated at the current iterate $\xv_k$. Every row
+    reduces to $(\sensv,0)\Rightarrow$ MLEM at $\beta=0$.}
+  \label{tab:reg-priors}
+\end{table}
+
+Two quadratic priors are provided. The \code{QuadraticIntensityPrior}$(\beta,\bm
+z)$ pulls the image toward a reference $\bm z$; it is De Pierro's example prior and
+serves mainly as a baseline, since penalizing intensity biases the activity. The
+\code{QuadraticSmoothnessPrior}$(\beta)$ is the noise-controlling one: it penalizes
+squared differences across the 6-connected neighbourhood, so its gradient is a
+discrete Laplacian and the prior acts as a smoother. Because the De Pierro update
+is the exact M-step of a surrogate that majorizes $\Phi$ and touches it at $\xv_k$,
+it is \emph{monotone} --- $\Phi(\xv_{k+1})\le\Phi(\xv_k)$ at every iteration ---
+inheriting the convergence guarantee MLEM has for the likelihood alone.
+
+The neighbour sums $\bm m$ and counts $\bm w$ are the only new computation, and
+they are a stencil over the image --- the same kind of structured, embarrassingly
+parallel operation as the Joseph projector. They are written as a
+KernelAbstractions kernel so the one source runs on CPU or GPU
+(Section~\ref{sec:acceleration}), mirroring the projector idiom:
+\begin{lstlisting}
+@kernel function _neigh6_kernel!(nsum, wsum, @Const(x), n)
+    I = @index(Global, Cartesian)
+    i, j, k = I[1], I[2], I[3]
+    s = 0.0f0; w = 0.0f0
+    if i > 1;    s += x[i-1,j,k]; w += 1.0f0; end   # ... 5 more faces
+    if i < n[1]; s += x[i+1,j,k]; w += 1.0f0; end
+    nsum[I] = s; wsum[I] = w
+end
+\end{lstlisting}
+The De Pierro iteration is then \eqref{eq:reg-numerator}--\eqref{eq:reg-depierro}
+verbatim, with the prior reduced to its $(B,G)$ pair:
+\begin{lstlisting}
+B, G  = _prior_BG(prior, x, sens)               # Table 1; NoPrior -> (sens, 0)
+denom = sqrt.(B.^2 .+ 4f0 .* G .* t) .+ B
+x     = ifelse.(sens .> 0f0, 2f0 .* t ./ denom, x)   # leave FOV-exterior fixed
+x     = max.(x, 0f0)                                  # guard Float32 cancellation
+\end{lstlisting}
+This is \code{penalized\_mlem}; called with \code{NoPrior()} it is bit-for-bit the
+MLEM of Section~\ref{sec:mlem}.
+
+\subsection{Edge-preserving priors: One-Step-Late}
+\label{sec:reg:osl}
+
+A quadratic smoothness prior penalizes \emph{every} difference equally, so it
+blurs genuine edges along with noise. Edge-preserving priors penalize small
+differences quadratically but large ones only linearly, leaving true boundaries
+intact; the Huber penalty $\rho_\delta$ --- quadratic for $\abs t\le\delta$, linear
+beyond --- is the canonical choice. Such priors are not quadratic, so the De Pierro
+closed form does not apply. RecoCrysp uses instead the One-Step-Late (OSL) update
+of Green~\cite{green1990}, which evaluates the penalty gradient at the
+\emph{current} iterate and adds it to the sensitivity in the MLEM denominator:
+\begin{equation}
+  \xv_{k+1} \;=\; \frac{\\bm{t}}{\sensv + \nabla R(\xv_k)},
+  \qquad
+  \bigl(\nabla R\bigr)_j = \beta\!\!\sum_{k\in\mathcal N_j}\!\psi_\delta(x_j-x_k),
+  \quad
+  \psi_\delta(t)=\operatorname{clamp}(t,-\delta,\delta).
+  \label{eq:reg-osl}
+\end{equation}
+The clamped influence $\psi_\delta$ is the Huber gradient: below $\delta$ it is the
+identity, so the prior smooths like the quadratic one; above $\delta$ --- at an
+edge --- it saturates, so the penalty stops pulling across the boundary and the
+edge survives. The gradient is the same 6-neighbour stencil as before with
+\code{clamp} in place of the bare difference, and $\beta=0$ again recovers MLEM.
+OSL is the standard MLEM-structured edge-preserving scheme, but because the penalty
+gradient is taken one step late it is \emph{not} provably monotone: it is stable at
+the moderate $\beta$ used in practice and can diverge at very large $\beta$, so we
+lean on $\beta=0\equiv$ MLEM as the anchor and verify behaviour empirically. For
+quadratic priors \code{penalized\_mlem} (monotone) is preferred; \code{osl\_mlem}
+is for the non-quadratic, edge-preserving case.
+
+\subsection{Choosing the strength}
+\label{sec:reg:beta}
+
+The regularization weight $\beta$ has no universal value: it trades resolution
+against noise, and because the prior is added to $f$ it must be commensurate with
+the magnitude of $\sensv$, which depends on the geometry, the multiplicative
+factors, and the event-to-sensitivity scale (Section~\ref{sec:datamodel}). On the
+worked NEMA study (Part~II) $\sensv$ is of order $10^2$--$10^3$, so useful
+smoothness/Huber strengths fall in $\beta\sim\mathcal O(10^2$--$10^3)$ and the Huber
+threshold $\delta$ is set just above the noise scale of the differences;
+both are tuned per study, like the iteration count. The practical finding there is
+that for low-contrast features a quadratic smoothness prior, an edge-preserving
+Huber prior, and a simple Gaussian post-filter on an early-stopped MLEM all sit on
+nearly the same resolution--noise frontier --- regularization \emph{bounds} the
+noise growth that early stopping merely outruns, and which of these realizations is
+used matters little. Edge preservation pays off only where the features carry
+strong edges for the Huber threshold to protect. The detailed comparison is the
+subject of Part~II.

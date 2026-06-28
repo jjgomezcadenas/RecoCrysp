@@ -119,6 +119,8 @@ explicit alternative is to add a smoothness prior, reconstructing the maximum
 roughness and $\beta$ setting its strength. The preconditioned-gradient view of
 Section~\ref{sec:mlem} makes this a small change: the same step
 $\xv-(\xv/\sensv)\odot\nabla(\cdot)$ applies to the penalized objective, with the
-prior's gradient added to $\nabla f$. RecoCrysp ships the unregularized MLEM/OSEM
-and relies on early stopping; a penalty term is a natural extension of the same
-update and is left for later work.
+prior's gradient added to $\nabla f$. Carrying that out while preserving the
+non-negativity and monotonicity of the EM update is the subject of
+Section~\ref{sec:regularization}, which gives the De Pierro and One-Step-Late
+schemes RecoCrysp implements; the unregularized MLEM/OSEM with early stopping
+remains the default.
