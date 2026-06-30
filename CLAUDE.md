@@ -33,3 +33,5 @@ in that area:
 - `statusmd/reco_spheres_status.md` — `recoExamples/sphere/` MC studies (normalization,
   randoms, attenuation, scatter on the uniform sphere).
 - `statusmd/reco_nema_status.md` — `recoExamples/nema/` contrast-phantom studies.
+- `statusmd/nema_water_methods_wip.md` — ACTIVE WIP: the nema_la_water method
+  comparison (branch `osl-safeguard`), clinical NEMA benchmark, and the next steps.
