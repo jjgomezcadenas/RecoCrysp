@@ -13,6 +13,7 @@
   {../air_bgo_10MBq/figures/}%
   {../water_bgo_1MBq/figures/}%
   {../../nema/nema_la_air_bgo/figures/}%
+  {../../nema/nema_la_water_bgo/figures/}%
 }
 
 \newcommand{\sr}{s_{r}}
@@ -46,7 +47,11 @@ Monte-Carlo sampling noise of the \emph{sensitivity image} $A^{\!\top}(1)$:
 under-sampled it injects a $\sim\!30\%$ background coefficient of variation,
 amplified by the MLEM denominator, that falls as $1/\sqrt{n_{\text{sens}}}$ and is
 removed by computing the sensitivity from a large LOR sample. Normalization, in
-other words, is itself a sizeable Monte-Carlo job.
+other words, is itself a sizeable Monte-Carlo job. Finally, the contrast phantom in
+water --- attenuation plus $20.5\%$ scatter and $3.2\%$ randoms together --- is where
+the additive corrections become visible: the backgrounds wash the sphere contrast and
+the correction recovers part of it, the demonstration the degenerate uniform sphere
+could not give.
 \end{abstract}
 
 \section{Setup and method}
@@ -93,13 +98,25 @@ of Section~\ref{sec:nema}: a $2.5$\,mm grid; the sensitivity sampled at
 $n_{\text{sens}}=5\times10^{8}$ LORs (the count needed to push its Monte-Carlo
 sampling noise below the floor --- the central finding of Section~\ref{sec:nema},
 the reason an apparently trivial $A^{\!\top}(1)$ is a large MC job); and a
-regularized update in place of plain MLEM (Part~I). The vacuum scenarios use the
-edge-preserving Huber prior (OSL); the water scenarios use the De Pierro
-quadratic-smoothness prior (\code{penalized\_mlem}), because OSL Huber \emph{diverges}
-under attenuation --- there $\text{sens}=A^{\!\top}(a)$ is small at the centre, so the
-one-step-late denominator $\text{sens}+\nabla R$ collapses and a hot voxel runs away.
-De Pierro is monotone and cannot, so it is the right choice when the sensitivity is
-small somewhere.
+regularized update in place of plain MLEM (Part~I). The noise control is chosen per
+scenario along two axes --- does the sensitivity get small (attenuation), and is there
+fine contrast to preserve:
+\begin{itemize}
+  \item \emph{Vacuum, contrast} (NEMA in air) --- edge-preserving \textbf{Huber} (OSL):
+        bounds the noise while keeping the small-sphere edges.
+  \item \emph{Water, no contrast} (uniform sphere) --- \textbf{De Pierro} quadratic
+        smoothness (\code{penalized\_mlem}), because OSL Huber \emph{diverges} under
+        attenuation: there $\text{sens}=A^{\!\top}(a)$ is small at the centre, so the
+        one-step-late denominator $\text{sens}+\nabla R$ collapses and a hot voxel runs
+        away. De Pierro is monotone and cannot; with no contrast to lose, its lack of
+        edge preservation costs nothing.
+  \item \emph{Water, contrast} (NEMA in water, Section~\ref{sec:nemawater}) ---
+        \textbf{MLEM + Gaussian post-filter}. Quadratic smoothness would erase the hot
+        spheres, and OSL Huber would diverge; plain MLEM ($x^{+}=t/\text{sens}$, no
+        division by $\text{sens}+\nabla R$) is stable under attenuation, and a post-filter
+        controls the noise while preserving contrast (post-filter $\approx$ Huber on the
+        NEMA frontier, Section~\ref{sec:nema}).
+\end{itemize}
 
 \section{Normalization (air, $n=1$)}
 
@@ -364,6 +381,47 @@ sizeable Monte-Carlo job, not a cheap analytic prefactor.
   \label{fig:nema-spheres}
 \end{figure}
 
+\section{Full physics on a contrast phantom: NEMA in water}
+\label{sec:nemawater}
+
+The water NEMA phantom (\code{nema\_la\_water\_bgo}) closes the arc: a contrast object
+\emph{and} all three corrections at once --- attenuation, $20.5\%$ scatter, $3.2\%$
+randoms --- where, unlike the uniform sphere, the corrections are no longer degenerate
+with the source and can be \emph{seen}. The body is a uniform water cylinder
+($R=100$\,mm, $|z|\le90$\,mm), so attenuation is again exact and analytic, now via the
+\emph{cylinder} chord (the line's radial interval $x^2+y^2\le R^2$ intersected with the
+axial slab; \code{cylinder\_chord}) rather than the sphere chord. Reconstruction is
+MLEM\,+\,$8$\,mm post-filter: quadratic smoothness erased the hot spheres outright and
+OSL Huber diverges under attenuation, so the stable, contrast-preserving choice is
+post-filtered MLEM (the per-scenario reasoning is in the method note above). We reconstruct three ways,
+all attenuation-corrected: \emph{gold} (true coincidences), \emph{uncorrected} (all
+prompts, no scatter/randoms model), and \emph{corrected} (contamination $=$ smoothed
+sinogram scatter $+$ randoms).
+
+The corrections move the numbers (Fig.~\ref{fig:nemawater}). The scatter and randoms
+fill the cold background and wash the contrast: the $37$\,mm sphere's CRC falls from the
+gold $74\%$ to $48\%$, and the background mean rises from $0.467$ to $0.514$. The
+correction pulls both back toward gold --- CRC $48\to50\%$, background $0.514\to0.501$ ---
+and the three CRC-versus-size curves separate cleanly (gold well above; corrected just
+above uncorrected at every size). This is the visible, quantitative correction the
+uniform sphere could not provide. The recovery is real but \emph{partial}: most of the
+gold-to-uncorrected gap remains, as the smoothed additive model under-subtracts in the
+cold background. Tuning the scatter-model parametrization for stronger cold-region
+subtraction is the natural refinement; the machinery and the geometry are validated.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{nema_la_water_bgo}
+  \caption{Full physics on the water NEMA phantom (MLEM\,+\,$8$\,mm post-filter,
+  $500$\,M sensitivity LORs). Top: central slices --- gold (trues, AC), uncorrected
+  (all prompts, AC only), corrected (AC\,+\,scatter\,+\,randoms); all six hot spheres
+  reconstruct on the water body. Bottom: contrast recovery versus sphere diameter for
+  the three. The curves separate --- scatter\,+\,randoms wash the contrast (gold$\to$
+  uncorrected) and the correction recovers part of it (uncorrected$\to$corrected) ---
+  the demonstration the degenerate uniform sphere could not give.}
+  \label{fig:nemawater}
+\end{figure}
+
 \section{Synthesis}
 
 \begin{table}[t]
@@ -392,16 +450,19 @@ flagged totals, and the structured, physical action is visible in absolute,
 un-normalized terms --- but the phantom cannot \emph{show} them. Attenuation is the
 exception precisely because it is multiplicative and radially structured.
 
-The NEMA contrast phantom (Section~\ref{sec:nema}) is where the sphere's
-degeneracy lifts: it displays the spheres, gives a quantitative CRC, and --- the
-main result of this report --- exposes the reconstruction noise as the Monte-Carlo
-sampling of the sensitivity image, fixable by sampling $\sens$ from a large LOR set
-rather than by more data or a finer grid. The natural continuation is to run that
-same phantom at high activity (a $22.9\%$-randoms twin of the $2.9\%$ case shown
-here) at a single locked reconstruction configuration, so the randoms correction is
-finally exercised on an object that can show it. Two smaller side-studies remain
-self-contained: relaxing the energy window on the water dataset (which would raise
-the $0.13$ interior scatter fraction), and settling which LOR measure is the correct
-one for the $\pm 8\%$ normalization tilt.
+The NEMA contrast phantom is where the sphere's degeneracy lifts. In vacuum
+(Section~\ref{sec:nema}) it gives a quantitative CRC and --- the main reconstruction
+finding of this report --- exposes the background noise as the Monte-Carlo sampling of
+the sensitivity image, fixable by sampling $\sens$ from a large LOR set rather than by
+more data or a finer grid. In water (Section~\ref{sec:nemawater}) it finally
+\emph{shows} the additive corrections: with attenuation, $20.5\%$ scatter and $3.2\%$
+randoms all present, the scatter\,+\,randoms wash the contrast and the correction
+recovers part of it, the CRC curves separating where the uniform sphere kept them on
+top of one another. The natural continuations are to push the cold-background
+subtraction of the scatter model (the recovery is currently partial), and to run the
+high-activity randoms twin ($22.9\%$) for a randoms-only control. Two smaller
+side-studies remain self-contained: relaxing the energy window on the water dataset
+(which would raise the $0.13$ interior scatter fraction), and settling which LOR
+measure is the correct one for the $\sim\!25\%$ normalization tilt.
 
 \end{document}
