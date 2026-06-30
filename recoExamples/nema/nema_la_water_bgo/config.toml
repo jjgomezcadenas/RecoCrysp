@@ -1,0 +1,71 @@
+# NEMA NU-2 IQ phantom, WATER body, LOW activity (LA) -- the full-physics contrast
+# case. Six hot spheres (Ø 10-37 mm) at 4:1 in a water cylinder (R=10 cm, half 9 cm),
+# so all three corrections are present and -- unlike the uniform sphere -- VISIBLE:
+# attenuation (μ_water), Compton scatter (20.5%), randoms (3.2%). Reconstruct
+# gold(trues, AC) / uncorr(prompts, AC only) / corr(prompts, AC+scatter+randoms) and
+# measure per-sphere CRC + background CoV. Recon = De Pierro quadratic (OSL Huber
+# diverges under attenuation). Locked recipe: 2.5 mm, 500 M sens, niter 30.
+
+tag = "nema_la_water_bgo"
+
+[data]
+lors = "/Users/jjgomezcadenas/Projects/PTCryspMC.jl/prod/nema_la_water_bgo/lors_det.h5"
+
+[scanner]
+sample_radius_mm = 405.5
+afov_mm          = 1024.0
+
+[phantom]
+radius_mm = 100.0          # body cylinder radius (sinogram edge marker; = NEMA_BODY_R_MM)
+
+[attenuation]
+mu_per_cm = 0.096          # water at 511 keV (narrow-beam; trues-only ⇒ exact)
+# body geometry for the cylinder chord is taken from NEMA_BODY_R_MM / NEMA_BODY_HALF_MM.
+
+[grid]
+n       = [91, 91, 73]
+voxsize = 2.5              # -> extent +-112.5 (x,y), +-90 (z) mm; resolves the 10 mm sphere
+
+[sens]
+n_sample_lors = 500000000  # locked recipe: sample Aᵀ(a) below the noise floor
+seed          = 1
+
+[recon]                    # MLEM + Gaussian post-filter: stable under attenuation
+niter      = 30            #   (plain MLEM, x⁺=t/sens, doesn't divide by sens+∇R so it
+method     = "mlem"        #   can't diverge like OSL Huber) AND contrast-preserving --
+quad_beta  = 1000.0        #   De Pierro quadratic erases the hot spheres on a CONTRAST
+huber_beta  = 1000.0       #   phantom. Post-filter ≈ Huber > quadratic (air-NEMA frontier).
+huber_delta = 0.05         #   "mlem" | "quadratic" (De Pierro) | "huber" (OSL)
+
+[postfilter]
+fwhm_mm = 8.0              # Gaussian post-filter (air-NEMA scan_fwhm sweet spot)
+
+[scatter]                  # smoothed scatter model in sinogram coords (truth==1)
+n_sr      = 40
+n_zm      = 40
+n_dz      = 16
+sr_max_mm = 200.0
+zm_max_mm = 180.0
+dz_max_mm = 400.0
+smooth_sr = 0.0            # keep the sharp scatter-fraction edge at the body radius
+smooth_zm = 1.5
+smooth_dz = 1.0
+
+[randoms]                  # smoothed randoms model in sinogram coords (truth==2)
+n_sr      = 40
+n_zm      = 40
+n_dz      = 16
+sr_max_mm = 200.0
+zm_max_mm = 180.0
+dz_max_mm = 400.0
+smooth_sr = 0.0
+smooth_zm = 1.5
+smooth_dz = 1.0
+
+[roi]
+sphere_shrink_mm = 0.0     # sphere VOI = true diameter
+bg_r_max_mm      = 30.0    # central sphere-free background ROI
+bg_z_half_mm     = 10.0
+
+[backend]
+device = "metal"

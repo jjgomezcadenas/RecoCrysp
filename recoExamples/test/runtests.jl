@@ -87,6 +87,24 @@ end
     @test rC[1] / rC[2] ≈ 1200 / 240
 end
 
+@testset "cylinder_chord (NEMA body attenuation)" begin
+    R = 100.0f0; hz = 90.0f0
+    # transverse LOR through the axis: chord = diameter = 2R
+    @test cylinder_chord((-200f0, 0f0, 0f0), (200f0, 0f0, 0f0), R, hz) ≈ 200f0
+    # transverse LOR at impact y = 60: chord = 2√(R²-60²) = 2·80 = 160
+    @test cylinder_chord((-200f0, 60f0, 0f0), (200f0, 60f0, 0f0), R, hz) ≈ 160f0
+    # transverse LOR outside the radius: misses
+    @test cylinder_chord((-200f0, 150f0, 0f0), (200f0, 150f0, 0f0), R, hz) == 0f0
+    # axial LOR on the axis: chord = z-slab length = 2·half_z = 180
+    @test cylinder_chord((0f0, 0f0, -200f0), (0f0, 0f0, 200f0), R, hz) ≈ 180f0
+    # attenuation_factors with the cylinder path: a = exp(-mu·chord)
+    xs = Float32[-200 -200; 0 150; 0 0]
+    xe = Float32[200 200; 0 150; 0 0]
+    a = attenuation_factors(xs, xe; R = R, mu = 0.0096f0, half_z = hz)  # 0.096/cm
+    @test a[1] ≈ exp(-0.0096f0 * 200f0)        # through the axis
+    @test a[2] ≈ 1f0                            # misses -> no attenuation
+end
+
 # Optional: if the real water file is present, sanity-check the class fractions.
 const WATER = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/lors_det.h5")
 const SINGLES = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/singles.h5")
