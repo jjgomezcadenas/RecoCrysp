@@ -219,7 +219,7 @@ function penalty_gradient(p::RelativeDifferencePrior, x)
 end
 
 """
-    osl_mlem(model, x0, prior; niter = 50, denom_clamp = 10f0, callback = nothing)
+    osl_mlem(model, x0, prior; niter = 50, denom_clamp = 10f0, clamp_frac = nothing, callback = nothing)
 
 One-Step-Late MAP-EM for an edge-preserving (non-quadratic) `prior` exposing
 `penalty_gradient`. Update `x⁺ = t / (sens + ∇R(x))`, clamped non-negative.
@@ -233,21 +233,30 @@ phantoms). Following STIR's `OSMAPOSL`, the denominator is clamped to
 is held in `[1/denom_clamp, denom_clamp]` --- which keeps OSL stable without moving
 its fixed point (at convergence `∇R` is small and the clamp is inactive). Set
 `denom_clamp` larger to loosen the guard, or `Inf` to recover the raw OSL update.
+Pass a `Ref` as `clamp_frac` to read back the mean fraction of in-FOV voxels whose
+denominator was clamped (a diagnostic for how hard the guard is working).
 β=0 is [`mlem`](@ref); for quadratic priors prefer [`penalized_mlem`](@ref) (monotone).
 """
 function osl_mlem(m::ListmodePoissonModel, x0, prior::Prior; niter::Integer = 50,
-                  denom_clamp::Real = 10.0f0, callback = nothing)
+                  denom_clamp::Real = 10.0f0, clamp_frac = nothing, callback = nothing)
     x = copy(x0)
     sens = m.sensitivity
     c = Float32(denom_clamp)
     lo = sens ./ c; hi = sens .* c                       # per-voxel denominator bounds
+    nfov = clamp_frac === nothing ? 1 : count(>(0.0f0), sens)
+    acc = 0.0                                            # mean fraction of FOV voxels clamped
     for k in 1:niter
         t, _ = _em_numerator(m, x)
-        denom = clamp.(sens .+ penalty_gradient(prior, x), lo, hi)
+        raw = sens .+ penalty_gradient(prior, x)
+        denom = clamp.(raw, lo, hi)
+        if clamp_frac !== nothing
+            acc += Float64(sum((sens .> 0.0f0) .& ((raw .< lo) .| (raw .> hi)))) / nfov
+        end
         x = ifelse.(sens .> 0.0f0, t ./ max.(denom, 1.0f-20), x)
         x = max.(x, 0.0f0)
         callback === nothing || callback(k, x)
     end
+    clamp_frac === nothing || (clamp_frac[] = acc / niter)
     return x
 end
 

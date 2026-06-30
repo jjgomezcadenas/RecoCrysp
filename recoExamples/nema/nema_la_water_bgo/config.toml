@@ -67,5 +67,85 @@ sphere_shrink_mm = 0.0     # sphere VOI = true diameter
 bg_r_max_mm      = 30.0    # central sphere-free background ROI
 bg_z_half_mm     = 10.0
 
+# --- systematic method comparison (compare_methods.jl) -------------------------
+# Each [[variant]] is reconstructed gold/uncorr/corr on the SAME data + AC sens
+# (built/cached once) and written to out/nema_la_water_bgo_<tag>.npz. Add entries
+# (e.g. quad_b300, quad_b3000) to scan a parameter -- the tag must stay unique.
+# niter defaults to [recon].niter; override per variant with niter = N.
+[[variant]]
+tag    = "mlem"            # MLEM + Gaussian post-filter (baseline)
+method = "mlem"
+fwhm_mm = 8.0
+
+# De Pierro quadratic smoothness -- β scan (β=1000 washed contrast; scan downward)
+[[variant]]
+tag = "quad_b10"
+method = "quadratic"
+beta = 10.0
+[[variant]]
+tag = "quad_b30"
+method = "quadratic"
+beta = 30.0
+[[variant]]
+tag = "quad_b100"
+method = "quadratic"
+beta = 100.0
+[[variant]]
+tag = "quad_b300"
+method = "quadratic"
+beta = 300.0
+
+# OSL Huber (safeguarded) -- β scan at δ=0.2 (edge threshold above bg noise ~0.045,
+# below the sphere-edge jump ~0.75). β=300-3000 too large (heavy clamp, CoV>1);
+# rescan downward at the scale the quad scan indicated (β~O(10)).
+[[variant]]
+tag = "huber_b3_d20"
+method = "huber"
+beta = 3.0
+delta = 0.2
+[[variant]]
+tag = "huber_b10_d20"
+method = "huber"
+beta = 10.0
+delta = 0.2
+[[variant]]
+tag = "huber_b30_d20"
+method = "huber"
+beta = 30.0
+delta = 0.2
+[[variant]]
+tag = "huber_b100_d20"
+method = "huber"
+beta = 100.0
+delta = 0.2
+[[variant]]
+tag = "huber_b300_d20"
+method = "huber"
+beta = 300.0
+delta = 0.2
+[[variant]]
+tag = "huber_b1000_d20"
+method = "huber"
+beta = 1000.0
+delta = 0.2
+[[variant]]
+tag = "huber_b3000_d20"
+method = "huber"
+beta = 3000.0
+delta = 0.2
+
+[[variant]]
+tag     = "rdp"            # Relative Difference Prior (intensity-relative; Q.Clear)
+method  = "rdp"
+beta    = 100.0
+gamma   = 2.0
+epsilon = 0.01
+
+[[variant]]
+tag    = "logcosh"         # Logcosh (smooth edge prior)
+method = "logcosh"
+beta   = 50.0
+scalar = 3.0
+
 [backend]
 device = "metal"
