@@ -22,3 +22,14 @@ When the user asks a question, **ANSWER IT. Do not do anything else.**
 - Always state the path of any figure you produce (e.g.
   `recoExamples/.../figures/foo.png`) so it can be opened.
 - Confirm before writing/building/committing/pushing.
+
+## Status docs — READ THESE to orient on the software state
+Dated per-area inventories live in `statusmd/`. Read the relevant one before working
+in that area:
+- `statusmd/pp_status.md` — RecoCrysp core (`src/`): Joseph projectors, geometry,
+  phantoms, PSF, reconstruction (MLEM/OSEM, penalized De Pierro / OSL Huber).
+- `statusmd/reco_status.md` — `recoExamples/src/` helpers (PTCRYSP readers,
+  attenuation, sinogram scatter/randoms, NEMA ROIs) + the locked recipe.
+- `statusmd/reco_spheres_status.md` — `recoExamples/sphere/` MC studies (normalization,
+  randoms, attenuation, scatter on the uniform sphere).
+- `statusmd/reco_nema_status.md` — `recoExamples/nema/` contrast-phantom studies.
