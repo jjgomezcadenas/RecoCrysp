@@ -20,7 +20,8 @@ export MCCoincidences, read_coincidences, endpoints,
 export elem_id, singles_element_counts, randoms_estimate
 export emission_sens_lors, surface_doi_lors, ideal_sphere_lors
 export sphere_chord, cylinder_chord, attenuation_factors
-export lor_sinogram_coords, background_estimate, background_sinograms, gaussian_postfilter
+export lor_sinogram_coords, lor_sinogram_coords4, background_estimate,
+       background_estimate4, background_sinograms, gaussian_postfilter
 export NemaSphere, NEMA_SPHERES, NEMA_HOT_RATIO, NEMA_BODY_R_MM, NEMA_BODY_HALF_MM,
        nema_sphere_masks, nema_background_mask, nema_background_variability, nema_true_image
 

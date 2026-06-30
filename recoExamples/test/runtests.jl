@@ -105,6 +105,35 @@ end
     @test a[2] ≈ 1f0                            # misses -> no attenuation
 end
 
+@testset "background_estimate4 (phi localization)" begin
+    NA = 100; NB = 100
+    xs = zeros(Float32, 3, NA + NB); xe = similar(xs)
+    for i in 1:NA            # group A: horizontal LORs at y=-50 -> s=50, phi=0 (all scatter)
+        xs[:, i] = Float32[-200, -50, 0]; xe[:, i] = Float32[200, -50, 0]
+    end
+    for i in 1:NB            # group B: vertical LORs at x=50 -> s=50, phi=pi/2 (no scatter)
+        xs[:, NA+i] = Float32[50, -200, 0]; xe[:, NA+i] = Float32[50, 200, 0]
+    end
+    bg = vcat(trues(NA), falses(NB))
+    s, phi, zm, dz = lor_sinogram_coords4(xs, xe)
+    @test all(abs.(s .- 50.0f0) .< 1.0f-3)                          # both groups at s=50
+    @test maximum(abs.(phi[1:NA])) < 1.0f-3                         # group A phi=0
+    @test all(abs.(phi[NA+1:end] .- Float32(pi / 2)) .< 1.0f-3)    # group B phi=pi/2
+
+    kw = (n_s = 8, n_zm = 1, n_dz = 1, span_s = (-200.0f0, 200.0f0),
+          span_phi = (0.0f0, Float32(pi)), span_zm = (-10.0f0, 10.0f0),
+          span_dz = (-10.0f0, 10.0f0), smooth = (0.0, 0.0, 0.0, 0.0))
+    b2 = background_estimate4(s, phi, zm, dz, bg; n_phi = 2, kw...)
+    b1 = background_estimate4(s, phi, zm, dz, bg; n_phi = 1, kw...)
+    # n_phi=2 separates the two phi: A-events fraction ~1, B-events ~0
+    @test all(b2[1:NA] .> 0.9f0) && all(b2[NA+1:end] .< 0.1f0)
+    # n_phi=1 folds phi together: every event gets NA/(NA+NB) = 0.5 (proves phi did the work)
+    @test all(abs.(b1 .- 0.5f0) .< 1.0f-3)
+    # total rescaling sums exactly
+    bt = background_estimate4(s, phi, zm, dz, bg; n_phi = 2, total = 50.0, kw...)
+    @test sum(bt) ≈ 50.0f0
+end
+
 # Optional: if the real water file is present, sanity-check the class fractions.
 const WATER = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/lors_det.h5")
 const SINGLES = expanduser("~/Projects/PTCryspMC.jl/prod/sphere_water_csi/singles.h5")

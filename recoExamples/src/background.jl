@@ -42,23 +42,26 @@ function _gauss_kernel(sigma)
     return k ./ sum(k)
 end
 
-# Separable Gaussian smoothing of a 3D array (clamp at borders). `sigmas` is the
-# per-axis width in bins; an axis with sigma <= 0 is left UNSMOOTHED -- used to
-# preserve a genuinely sharp physical edge along that axis (here s_r at s_r = R).
-function _smooth3(A, sigmas)
-    sz = size(A)
+# Separable Gaussian smoothing of an N-D array. `sigmas` is the per-axis width in
+# bins; an axis with sigma <= 0 is left UNSMOOTHED (preserve a genuinely sharp
+# physical edge, e.g. s_r at s_r = R). `circular` (per-axis bool, default all
+# false) wraps an axis at its borders instead of clamping -- required for a
+# periodic coordinate such as the azimuthal view phi. Works for any ndims(A).
+function _smoothnd(A, sigmas; circular = ntuple(_ -> false, ndims(A)))
+    nd = ndims(A); sz = size(A)
     B = copy(A)
-    for d in 1:3
+    for d in 1:nd
         sigmas[d] <= 0 && continue
         k = _gauss_kernel(sigmas[d])
         length(k) == 1 && continue
         r = (length(k) - 1) ÷ 2
-        C = similar(B); n = sz[d]
+        C = similar(B); n = sz[d]; wrap = circular[d]
         for I in CartesianIndices(B)
             acc = 0.0; base = I[d]
             for (m, w) in enumerate(k)
-                j = clamp(base + (m - 1 - r), 1, n)
-                Jt = ntuple(t -> t == d ? j : I[t], 3)
+                off = base + (m - 1 - r)
+                j = wrap ? mod(off - 1, n) + 1 : clamp(off, 1, n)
+                Jt = ntuple(t -> t == d ? j : I[t], nd)
                 acc += w * B[CartesianIndex(Jt)]
             end
             C[I] = acc
@@ -67,6 +70,9 @@ function _smooth3(A, sigmas)
     end
     return B
 end
+
+# 3-D convenience wrapper (clamp at all borders) -- preserves the original API.
+_smooth3(A, sigmas) = _smoothnd(A, sigmas)
 
 """
     gaussian_postfilter(img, fwhm_mm, voxsize) -> Array
@@ -129,6 +135,104 @@ function background_estimate(s_r, z_m, dz, bg_mask;
         sm = sum(s); sm > 0 && (s .*= Float32(total / sm))
     end
     return s
+end
+
+# ============================= 4-coordinate path ==============================
+# The 3-coordinate model above DROPS the azimuthal view phi (valid only for a
+# centred, azimuthally symmetric phantom). For an off-centre phantom (e.g. the
+# NEMA spheres) the scatter is localized in phi, and collapsing over phi replaces
+# the scatter under each sphere with the azimuthal average at that radius -- so
+# the contamination is right in total but mislocalized, and subtracting it barely
+# restores contrast. The functions below add phi (and a SIGNED radial coordinate,
+# required so that opposite-side LORs do not fold together) for a full
+# (s, phi, z_m, dz) sinogram, filled here from the truth scatter flags.
+
+"""
+    lor_sinogram_coords4(xs, xe) -> (s, phi, z_m, dz)
+
+Full reduced sinogram coordinates for the `(3,N)` endpoint columns: the SIGNED
+transverse radial offset `s = (x1·y2 - x2·y1)/|d_xy|`, the azimuthal view
+`phi = atan(dy, dx)` folded to `[0, pi)` (negating `s` on fold, so each line has a
+unique `(s, phi)`), the axial midpoint `z_m`, and the obliquity `dz = z2 - z1`.
+Unlike [`lor_sinogram_coords`](@ref) (unsigned `s_r`, no `phi`), this localizes a
+LOR in the transverse plane and is the parametrization to use for an off-centre
+phantom. `phi` is periodic on `[0, pi)`; smooth it circularly.
+"""
+function lor_sinogram_coords4(xs, xe)
+    N = size(xs, 2)
+    s = Vector{Float32}(undef, N); phi = similar(s); z_m = similar(s); dz = similar(s)
+    @inbounds for i in 1:N
+        x1 = xs[1, i]; y1 = xs[2, i]; z1 = xs[3, i]
+        x2 = xe[1, i]; y2 = xe[2, i]; z2 = xe[3, i]
+        dx = x2 - x1; dy = y2 - y1
+        dxy = hypot(dx, dy)
+        si = dxy < 1.0f-6 ? 0.0f0 : (x1 * y2 - x2 * y1) / dxy   # signed radial offset
+        ph = atan(dy, dx)                                       # view direction in (-pi, pi]
+        if ph < 0.0f0; ph += Float32(pi); si = -si; end        # fold to [0, pi), flip sign
+        ph >= Float32(pi) && (ph -= Float32(pi))               # guard the pi edge
+        s[i] = si; phi[i] = ph; z_m[i] = 0.5f0 * (z1 + z2); dz[i] = z2 - z1
+    end
+    return s, phi, z_m, dz
+end
+
+# 4-D histogram of the background subset (S) and all prompts (P), shared by
+# background_estimate4 so both bin identically.
+function _sino_hist4(s, phi, z_m, dz, bg_mask; n_s, n_phi, n_zm, n_dz,
+                     span_s, span_phi, span_zm, span_dz)
+    lo_s, hi_s = span_s; lo_p, hi_p = span_phi; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
+    S = zeros(Float64, n_s, n_phi, n_zm, n_dz); P = zeros(Float64, n_s, n_phi, n_zm, n_dz)
+    @inbounds for i in eachindex(s)
+        bi = _binidx(s[i],   lo_s, hi_s, n_s)
+        bp = _binidx(phi[i], lo_p, hi_p, n_phi)
+        bj = _binidx(z_m[i], lo_z, hi_z, n_zm)
+        bk = _binidx(dz[i],  lo_d, hi_d, n_dz)
+        P[bi, bp, bj, bk] += 1
+        bg_mask[i] && (S[bi, bp, bj, bk] += 1)
+    end
+    return S, P
+end
+
+"""
+    background_estimate4(s, phi, z_m, dz, bg_mask; n_s, n_phi, n_zm, n_dz,
+        span_s, span_phi, span_zm, span_dz, smooth, total=nothing, verbose=false)
+        -> Vector{Float32}
+
+The φ-aware counterpart of [`background_estimate`](@ref): per-event background `b_i`
+from a full `(s, phi, z_m, dz)` sinogram (signed `s`). `smooth` is a 4-tuple of
+per-axis Gaussian widths in bins; the `phi` axis is smoothed CIRCULARLY (periodic),
+the others clamp. With `n_phi = 1` and `span_phi = (0, pi)` this reduces to the
+3-coordinate model on signed `s`. If `total` is given the result is rescaled to sum
+to it. `verbose` prints the scatter-count occupancy (min/median per occupied bin) so
+the φ binning can be checked against starvation on the real data.
+"""
+function background_estimate4(s, phi, z_m, dz, bg_mask;
+                              n_s, n_phi, n_zm, n_dz,
+                              span_s, span_phi, span_zm, span_dz,
+                              smooth, total = nothing, verbose = false)
+    S, P = _sino_hist4(s, phi, z_m, dz, bg_mask; n_s = n_s, n_phi = n_phi,
+                       n_zm = n_zm, n_dz = n_dz, span_s = span_s, span_phi = span_phi,
+                       span_zm = span_zm, span_dz = span_dz)
+    if verbose
+        occ = filter(>(0.0), vec(S)); med = isempty(occ) ? 0.0 : sort(occ)[cld(length(occ), 2)]
+        println("  [bg4] scatter bins: $(length(occ))/$(length(S)) occupied, " *
+                "counts/occupied-bin min $(isempty(occ) ? 0 : Int(minimum(occ))) " *
+                "median $(round(med; digits=1))"); flush(stdout)
+    end
+    circ = (false, true, false, false)               # phi (axis 2) is periodic
+    S = _smoothnd(S, smooth; circular = circ); P = _smoothnd(P, smooth; circular = circ)
+    lo_s, hi_s = span_s; lo_p, hi_p = span_phi; lo_z, hi_z = span_zm; lo_d, hi_d = span_dz
+    out = Vector{Float32}(undef, length(s))
+    @inbounds for i in eachindex(s)
+        bi = _binidx(s[i],   lo_s, hi_s, n_s)
+        bp = _binidx(phi[i], lo_p, hi_p, n_phi)
+        bj = _binidx(z_m[i], lo_z, hi_z, n_zm)
+        bk = _binidx(dz[i],  lo_d, hi_d, n_dz)
+        out[i] = P[bi, bp, bj, bk] > 0 ? Float32(S[bi, bp, bj, bk] / P[bi, bp, bj, bk]) : 0.0f0
+    end
+    if total !== nothing
+        sm = sum(out); sm > 0 && (out .*= Float32(total / sm))
+    end
+    return out
 end
 
 """

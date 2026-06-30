@@ -62,18 +62,54 @@ sens_prompt = base .* Float32(n_prompt / nsens)
 x0 = Float32.(base .> 0)
 
 # ---- scatter + randoms contamination (method-independent) ----------------------
+# Two parametrizations: the 3-coord (s_r, z_m, dz) model (phi-collapsed; OK for a
+# centred phantom) and the 4-coord (s, phi, z_m, dz) model (signed s + azimuth;
+# needed to localize scatter under the OFF-centre NEMA spheres). A block selects
+# the 4-coord path with use_phi = true in its config; otherwise the 3-coord path.
 s_r, z_m, dz = lor_sinogram_coords(c.xstart, c.xend)
+s4, phi4, zm4, dz4 = lor_sinogram_coords4(c.xstart, c.xend)
+# Listmode contamination SCALE: the additive term must be commensurate with the
+# forward term mult*fwd(x) (intensity scale), not the fraction scale. With
+# intensity_scale, contamination_i = fraction_i * (mult*fwd(x_uncorr))_i, where the
+# uncorrected reconstruction supplies the per-LOR total-intensity proxy (it fits all
+# prompts). Without it the term sits ~12x too small (the scatter-scale-check finding)
+# and the correction is negligible. Off -> legacy sum=total fraction normalization.
+isc = get(cfg["scatter"], "intensity_scale", false)
+fterm = if isc
+    xu = mlem(ListmodePoissonModel(to_dev(c.xstart), to_dev(c.xend), sens_prompt;
+              img_origin = org, voxsize = vs, mult = to_dev(a_all)), x0; niter = 20)
+    a_all .* Array(joseph3d_fwd(to_dev(c.xstart), to_dev(c.xend), xu, org, vs))
+else
+    nothing
+end
 function bg_model(blk, mask, total)
     g = cfg[blk]
-    background_estimate(s_r, z_m, dz, mask;
-        n_sr = Int(g["n_sr"]), n_zm = Int(g["n_zm"]), n_dz = Int(g["n_dz"]),
-        span_sr = (0.0f0, Float32(g["sr_max_mm"])),
-        span_zm = (-Float32(g["zm_max_mm"]), Float32(g["zm_max_mm"])),
-        span_dz = (-Float32(g["dz_max_mm"]), Float32(g["dz_max_mm"])),
-        smooth = (Float64(g["smooth_sr"]), Float64(g["smooth_zm"]), Float64(g["smooth_dz"])),
-        total = Float64(total))
+    total = isc ? nothing : total          # intensity-scaled: keep the bare fraction
+    if get(g, "use_phi", false)
+        background_estimate4(s4, phi4, zm4, dz4, mask;
+            n_s = Int(g["n_sr"]), n_phi = Int(g["n_phi"]),
+            n_zm = Int(g["n_zm"]), n_dz = Int(g["n_dz"]),
+            span_s = (-Float32(g["sr_max_mm"]), Float32(g["sr_max_mm"])),  # SIGNED radius
+            span_phi = (0.0f0, Float32(pi)),
+            span_zm = (-Float32(g["zm_max_mm"]), Float32(g["zm_max_mm"])),
+            span_dz = (-Float32(g["dz_max_mm"]), Float32(g["dz_max_mm"])),
+            smooth = (Float64(g["smooth_sr"]), Float64(g["smooth_phi"]),
+                      Float64(g["smooth_zm"]), Float64(g["smooth_dz"])),
+            total = total === nothing ? nothing : Float64(total), verbose = true)
+    else
+        background_estimate(s_r, z_m, dz, mask;
+            n_sr = Int(g["n_sr"]), n_zm = Int(g["n_zm"]), n_dz = Int(g["n_dz"]),
+            span_sr = (0.0f0, Float32(g["sr_max_mm"])),
+            span_zm = (-Float32(g["zm_max_mm"]), Float32(g["zm_max_mm"])),
+            span_dz = (-Float32(g["dz_max_mm"]), Float32(g["dz_max_mm"])),
+            smooth = (Float64(g["smooth_sr"]), Float64(g["smooth_zm"]), Float64(g["smooth_dz"])),
+            total = total === nothing ? nothing : Float64(total))
+    end
 end
-contam = bg_model("scatter", smask, n_scat) .+ bg_model("randoms", rmask, n_rand)
+frac = bg_model("scatter", smask, n_scat) .+ bg_model("randoms", rmask, n_rand)
+contam = isc ? frac .* fterm : frac    # intensity-scaled vs legacy fraction
+# output-tag suffix so a variant never overwrites another corrections setting
+psuf = (get(cfg["scatter"], "use_phi", false) ? "_phi" : "") * (isc ? "_isc" : "")
 
 # ---- ROIs --------------------------------------------------------------------
 smasks = nema_sphere_masks(n, org, vs; shrink_mm = Float64(cfg["roi"]["sphere_shrink_mm"]))
@@ -147,7 +183,7 @@ for v in run_set
     crc_g, crc_u, crc_c = crc(g), crc(u), crc(cr)
     bv_g, bv_u, bv_c = bv(g), bv(u), bv(cr)
     cfrac = clampref === nothing ? NaN : clampref[]
-    npzwrite(joinpath(@__DIR__, "out", "nema_la_water_bgo_$(v["tag"]).npz"), Dict(
+    npzwrite(joinpath(@__DIR__, "out", "nema_la_water_bgo_$(v["tag"])$(psuf).npz"), Dict(
         "diam_mm" => diam, "hot_ratio" => ratio,            # tag/label are in the filename
         "crc_gold" => crc_g, "crc_uncorr" => crc_u, "crc_corr" => crc_c,
         "bv_gold" => bv_g, "bv_uncorr" => bv_u, "bv_corr" => bv_c,   # NEMA background variability %
@@ -156,7 +192,7 @@ for v in run_set
         "slice_gold" => g[:, :, kz], "slice_uncorr" => u[:, :, kz], "slice_corr" => cr[:, :, kz],
         "extent_xy" => Float32((n[1] - 1) / 2 * vs[1])))
     cftxt = isnan(cfrac) ? "" : "  clamp $(round(100cfrac; digits=1))%"
-    println("[$(v["tag"])] $label : corr CRC $(round(crc_c[1]))%..$(round(crc_c[end]))%  " *
+    println("[$(v["tag"])$psuf] $label : corr CRC $(round(crc_c[1]))%..$(round(crc_c[end]))%  " *
             "BV $(round(bv_c[1];digits=1))%..$(round(bv_c[end];digits=1))%  " *
             "(CoV $(round(covbg(cr);digits=3)))$cftxt"); flush(stdout)
 end

@@ -41,6 +41,13 @@ huber_delta = 0.05         #   "mlem" | "quadratic" (De Pierro) | "huber" (OSL)
 fwhm_mm = 8.0              # Gaussian post-filter (air-NEMA scan_fwhm sweet spot)
 
 [scatter]                  # smoothed scatter model in sinogram coords (truth==1)
+intensity_scale = true    # contamination = fraction * mult*fwd(x_uncorr): puts the
+                          #   additive term on the forward-model intensity scale (else
+                          #   ~12x too small for listmode -> negligible correction).
+use_phi   = false         # 4-coord (s,phi,z_m,dz) model localizes scatter under the
+n_phi     = 12            #   off-centre spheres, but with the scale fixed it is a WASH on
+smooth_phi = 1.0          #   the mean (helps large spheres, hurts small at n_phi=12; sparse
+                          #   stats). Kept as infrastructure; default OFF (3-coord).
 n_sr      = 40
 n_zm      = 40
 n_dz      = 16
