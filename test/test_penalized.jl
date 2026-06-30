@@ -97,6 +97,22 @@ end
     println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  huber $(round(std(hub[bg]);sigdigits=3))")
 end
 
+@testset "bsrem (relaxed preconditioned MAP)" begin
+    bg = [ax[1][i]^2 + ax[2][j]^2 + ax[3][k]^2 > 24.0f0^2 && sens[i, j, k] > 0
+          for i in 1:n[1], j in 1:n[2], k in 1:n[3]]
+    # (1) NoPrior, relax=1, relax_gamma=0 == mlem (the bracket is the MLEM step minus x)
+    a = bsrem(m, x0, NoPrior(); niter = 40, relax = 1.0f0, relax_gamma = 0.0f0)
+    b = mlem(m, x0; niter = 40)
+    @test maximum(abs.(a .- b)) <= 1.0f-4 * maximum(b)
+    # (2) RDP (Q.Clear penalty) reduces background variance vs unregularized at matched niter
+    raw = mlem(m, x0; niter = 30)
+    rdp = bsrem(m, x0, RelativeDifferencePrior(0.3f0, 2.0f0, 1.0f-2); niter = 30,
+                relax = 1.0f0, relax_gamma = 0.1f0)
+    @test std(rdp[bg]) < std(raw[bg])
+    @test all(isfinite, rdp) && minimum(rdp) >= 0.0f0      # stable, non-negative (no clamp needed)
+    println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  bsrem-rdp $(round(std(rdp[bg]);sigdigits=3))")
+end
+
 @testset "osl_mlem (Logcosh / RDP edge priors)" begin
     bg = [ax[1][i]^2 + ax[2][j]^2 + ax[3][k]^2 > 24.0f0^2 && sens[i, j, k] > 0
           for i in 1:n[1], j in 1:n[2], k in 1:n[3]]

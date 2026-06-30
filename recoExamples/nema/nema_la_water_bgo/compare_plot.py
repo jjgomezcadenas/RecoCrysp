@@ -51,7 +51,7 @@ fig, (axc, axf) = plt.subplots(1, 2, figsize=(14, 6))
 
 # left: corrected CRC vs diameter, per method; gold target + clinical reference
 axc.plot(diam[order], np.asarray(variants[0]["crc_gold"])[order], "--", color="gray",
-         lw=1.5, label="gold (trues, our target)")
+         lw=1.5, label="gold = trues, AC (best case / upper bound)")
 axc.plot(CLIN_DIAM, CLIN_CR, "k-D", ms=5, lw=1.5, label="clinical TOF-OSEM [ref]")
 for tag, d, col in zip(tags, variants, colors):
     axc.plot(diam[order], np.asarray(d["crc_corr"])[order], "-o", ms=5, color=col, label=tag)

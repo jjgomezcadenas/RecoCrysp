@@ -21,3 +21,10 @@ recoExamples/sphere/doc/*.aux
 recoExamples/sphere/doc/*.log
 recoExamples/sphere/doc/*.out
 recoExamples/sphere/doc/*.pdf
+# nema doc LaTeX build artifacts (nema_water.tex is the source)
+recoExamples/nema/doc/*.aux
+recoExamples/nema/doc/*.log
+recoExamples/nema/doc/*.out
+recoExamples/nema/doc/*.pdf
+# reference papers (copyrighted; kept locally, not committed)
+papers/

@@ -33,5 +33,8 @@ in that area:
 - `statusmd/reco_spheres_status.md` — `recoExamples/sphere/` MC studies (normalization,
   randoms, attenuation, scatter on the uniform sphere).
 - `statusmd/reco_nema_status.md` — `recoExamples/nema/` contrast-phantom studies.
-- `statusmd/nema_water_methods_wip.md` — ACTIVE WIP: the nema_la_water method
-  comparison (branch `osl-safeguard`), clinical NEMA benchmark, and the next steps.
+- `statusmd/nema_water_reco_findings.md` — CONCLUDED: the nema_la_water reconstruction
+  study. Key finding (don't rediscover): gold (trues) already = clinical CR; every
+  converging method (MLEM, De Pierro, OSL, BSREM-RDP) collapses to one linear frontier;
+  the whole gap to clinical is the **scatter correction** (recovers 1.6/25 CR pts), not
+  reconstruction. Full write-up: `recoExamples/nema/doc/nema_water.tex`.

@@ -77,6 +77,20 @@ tag    = "mlem"            # MLEM + Gaussian post-filter (baseline)
 method = "mlem"
 fwhm_mm = 8.0
 
+# MLEM post-filter fwhm scan -- the linear-smoother frontier (does Huber beat it?)
+[[variant]]
+tag     = "mlem_f0"
+method  = "mlem"
+fwhm_mm = 0.0
+[[variant]]
+tag     = "mlem_f4"
+method  = "mlem"
+fwhm_mm = 4.0
+[[variant]]
+tag     = "mlem_f6"
+method  = "mlem"
+fwhm_mm = 6.0
+
 # De Pierro quadratic smoothness -- β scan (β=1000 washed contrast; scan downward)
 [[variant]]
 tag = "quad_b10"
@@ -146,6 +160,51 @@ tag    = "logcosh"         # Logcosh (smooth edge prior)
 method = "logcosh"
 beta   = 50.0
 scalar = 3.0
+
+# BSREM + RDP -- the convergent Q.Clear algorithm (relaxed preconditioned MAP).
+# Prior enters the numerator (not the EM denominator) so it is stable under
+# attenuation with NO clamp. relax/relax_gamma = STIR OSSPS defaults; β scan
+# one at a time. niter raised: relaxed steps converge slower than MLEM.
+[[variant]]
+tag         = "bsrem_rdp_b1"
+method      = "bsrem"
+prior       = "rdp"
+beta        = 1.0
+gamma       = 2.0
+epsilon     = 0.01
+relax       = 1.0
+relax_gamma = 0.1
+niter       = 60
+[[variant]]
+tag         = "bsrem_rdp_b03"
+method      = "bsrem"
+prior       = "rdp"
+beta        = 0.3
+gamma       = 2.0
+epsilon     = 0.01
+relax       = 1.0
+relax_gamma = 0.1
+niter       = 60
+[[variant]]
+tag         = "bsrem_rdp_b05"
+method      = "bsrem"
+prior       = "rdp"
+beta        = 0.5
+gamma       = 2.0
+epsilon     = 0.01
+relax       = 1.0
+relax_gamma = 0.1
+niter       = 60
+[[variant]]
+tag         = "bsrem_rdp_b2"
+method      = "bsrem"
+prior       = "rdp"
+beta        = 2.0
+gamma       = 2.0
+epsilon     = 0.01
+relax       = 1.0
+relax_gamma = 0.1
+niter       = 60
 
 [backend]
 device = "metal"

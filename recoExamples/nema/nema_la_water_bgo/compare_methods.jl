@@ -89,6 +89,24 @@ bv(img) = Float64[v for (_, v) in nema_background_variability(img, n, org, vs)] 
 
 # ---- per-variant recon: (runrec, post) from the method + params ----------------
 default_niter = Int(cfg["recon"]["niter"])
+# Build an edge-preserving Prior + its label from a variant's "prior" family
+# (rdp/huber/logcosh). Shared by the OSL and BSREM branches.
+function build_prior(v, fam)
+    if fam == "huber"
+        return HuberPrior(Float32(v["beta"]), Float32(v["delta"])),
+               "Huber β=$(v["beta"]) δ=$(v["delta"])"
+    elseif fam == "rdp"
+        return RelativeDifferencePrior(Float32(v["beta"]), Float32(get(v, "gamma", 2.0)),
+                                       Float32(get(v, "epsilon", 0.01))),
+               "RDP β=$(v["beta"]) γ=$(get(v,"gamma",2.0)) ε=$(get(v,"epsilon",0.01))"
+    elseif fam == "logcosh"
+        return LogcoshPrior(Float32(v["beta"]), Float32(v["scalar"])),
+               "Logcosh β=$(v["beta"]) s=$(v["scalar"])"
+    else
+        error("unknown prior family $fam for variant $(v["tag"])")
+    end
+end
+
 # returns (runrec, post, label, clamp_ref). clamp_ref is a Ref holding the mean
 # OSL denominator-clamp fraction (diagnostic) for OSL methods, or nothing.
 function make_recon(v)
@@ -104,18 +122,14 @@ function make_recon(v)
                "De Pierro quad β=$(v["beta"])", nothing
     elseif m in ("huber", "rdp", "logcosh")
         cf = Ref(0.0)
-        if m == "huber"
-            pr = HuberPrior(Float32(v["beta"]), Float32(v["delta"]))
-            lab = "Huber β=$(v["beta"]) δ=$(v["delta"])"
-        elseif m == "rdp"
-            pr = RelativeDifferencePrior(Float32(v["beta"]), Float32(get(v, "gamma", 2.0)),
-                                         Float32(get(v, "epsilon", 0.01)))
-            lab = "RDP β=$(v["beta"]) γ=$(get(v,"gamma",2.0)) ε=$(get(v,"epsilon",0.01))"
-        else
-            pr = LogcoshPrior(Float32(v["beta"]), Float32(v["scalar"]))
-            lab = "Logcosh β=$(v["beta"]) s=$(v["scalar"])"
-        end
+        pr, lab = build_prior(v, m)
         return (model -> osl_mlem(model, x0, pr; niter = nit, clamp_frac = cf)), identity, lab, cf
+    elseif m == "bsrem"
+        fam = lowercase(get(v, "prior", "rdp"))
+        pr, plab = build_prior(v, fam)
+        rel = Float32(get(v, "relax", 1.0)); rg = Float32(get(v, "relax_gamma", 0.1))
+        return (model -> bsrem(model, x0, pr; niter = nit, relax = rel, relax_gamma = rg)),
+               identity, "BSREM[$plab] relax=$rel γ=$rg", nothing
     else
         error("unknown method $(v["method"]) for variant $(v["tag"])")
     end

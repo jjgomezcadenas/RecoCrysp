@@ -261,6 +261,55 @@ function osl_mlem(m::ListmodePoissonModel, x0, prior::Prior; niter::Integer = 50
 end
 
 """
+    bsrem(model, x0, prior; niter = 50, relax = 1f0, relax_gamma = 0.1f0, callback = nothing)
+
+Block Sequential Regularized EM (Ahn & Fessler 2003) — the convergent relaxed
+preconditioned-gradient MAP algorithm behind GE's Q.Clear. One iteration is
+
+    x⁺ = x + relaxₙ · (x / sens) · [ Aᵀ(mult·counts/pred) − sens − ∇R(x) ],   clamped ≥ 0,
+
+with the relaxation schedule `relaxₙ = relax / (1 + relax_gamma·(n-1))` (n = 1-based
+iteration). The bracket is the gradient of the MAP objective `L(x) − R(x)` (data EM
+gradient `Aᵀ(mult·counts/pred) − sens` minus the penalty gradient `∇R`, which already
+includes β); the preconditioner is the EM preconditioner `x/sens`.
+
+Unlike [`osl_mlem`](@ref), the prior enters the *numerator* (as a true gradient term),
+not the EM denominator, and the decreasing relaxation makes the iteration converge to
+the MAP optimum of `L − R` rather than running away — so it is stable under attenuation
+(small central `sens`) where OSL diverges, with no denominator clamp. At `relax = 1`,
+`relax_gamma = 0` and `NoPrior` it reproduces [`mlem`](@ref) exactly (the bracket is then
+`x·Aᵀ(mult·counts/pred)/sens − x`, i.e. the MLEM step minus `x`). Works for any `prior`
+exposing [`penalty_gradient`](@ref) (RDP/Huber/Logcosh) as well as `NoPrior`. Voxels
+outside the FOV (`sens == 0`) are left unchanged.
+"""
+function bsrem(m::ListmodePoissonModel, x0, prior::Prior = NoPrior();
+               niter::Integer = 50, relax::Real = 1.0f0, relax_gamma::Real = 0.1f0,
+               callback = nothing)
+    x = copy(x0)
+    sens = m.sensitivity
+    r0 = Float32(relax); rg = Float32(relax_gamma)
+    infov = sens .> 0.0f0
+    for k in 1:niter
+        relk = r0 / (1.0f0 + rg * Float32(k - 1))
+        grad = _map_gradient(m, x, prior)            # ∇(L − R) ascent direction
+        precond = ifelse.(infov, x ./ sens, 0.0f0)   # EM preconditioner x/sens
+        x = max.(x .+ relk .* precond .* grad, 0.0f0)
+        callback === nothing || callback(k, x)
+    end
+    return x
+end
+
+# Ascent gradient of the MAP objective L − R:  Aᵀ(mult·counts/pred) − sens − ∇R(x).
+# `_gradient` returns the descent gradient of the negative log-likelihood,
+# `sens − Aᵀ(mult·counts/pred)`, so its negation is the data EM ascent term (valid
+# even where x = 0, since it is computed by direct backprojection, not t/x).
+function _map_gradient(m::ListmodePoissonModel, x, prior::Prior)
+    return .-_gradient(m, x) .- penalty_gradient(prior, x)
+end
+
+penalty_gradient(::NoPrior, x) = zero(x)
+
+"""
     penalized_mlem(model, x0, prior = NoPrior(); niter = 50, callback = nothing)
 
 Penalized-likelihood MLEM (De Pierro). Runs `niter` iterations from `x0` under the
