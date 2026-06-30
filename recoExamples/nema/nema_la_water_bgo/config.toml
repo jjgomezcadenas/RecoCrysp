@@ -42,6 +42,9 @@ fwhm_mm = 8.0              # Gaussian post-filter (air-NEMA scan_fwhm sweet spot
 
 [scatter]                  # smoothed scatter model in sinogram coords (truth==1)
 intensity_scale = true    # contamination = fraction * mult*fwd(x_uncorr): puts the
+scale     = 1.0          # heuristic multiplier on the scatter term (diagnostic ladder
+                          #   1.2/1.5/2.0: residual closes UNIFORMLY, gold reached ~1.5,
+                          #   but that is truth-tuned -> default 1.0, the honest intensity fix).
                           #   additive term on the forward-model intensity scale (else
                           #   ~12x too small for listmode -> negligible correction).
 use_phi   = false         # 4-coord (s,phi,z_m,dz) model localizes scatter under the

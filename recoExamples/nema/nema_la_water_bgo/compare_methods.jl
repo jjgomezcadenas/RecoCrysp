@@ -106,10 +106,14 @@ function bg_model(blk, mask, total)
             total = total === nothing ? nothing : Float64(total))
     end
 end
-frac = bg_model("scatter", smask, n_scat) .+ bg_model("randoms", rmask, n_rand)
+frac_s = bg_model("scatter", smask, n_scat)
+frac_r = bg_model("randoms", rmask, n_rand)
+sscale = Float32(get(cfg["scatter"], "scale", 1.0))    # heuristic multiplier on the scatter term
+frac = sscale .* frac_s .+ frac_r
 contam = isc ? frac .* fterm : frac    # intensity-scaled vs legacy fraction
 # output-tag suffix so a variant never overwrites another corrections setting
-psuf = (get(cfg["scatter"], "use_phi", false) ? "_phi" : "") * (isc ? "_isc" : "")
+ssuf = sscale == 1.0f0 ? "" : "_sc" * replace(string(sscale), "." => "")
+psuf = (get(cfg["scatter"], "use_phi", false) ? "_phi" : "") * (isc ? "_isc" : "") * ssuf
 
 # ---- ROIs --------------------------------------------------------------------
 smasks = nema_sphere_masks(n, org, vs; shrink_mm = Float64(cfg["roi"]["sphere_shrink_mm"]))

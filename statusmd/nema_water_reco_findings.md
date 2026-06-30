@@ -1,8 +1,34 @@
 # NEMA-water reconstruction: CONCLUDED findings
 
-**Branch:** `osl-safeguard` (off `reco`). **Concluded:** 2026-06-30.
-**Doc:** `recoExamples/nema/doc/nema_water.tex` (4 pp, built). **Supersedes** the old
+**Branch:** `osl-safeguard` (merged to `reco`); scatter-correction follow-up on
+`scatter-ms`. **Concluded:** 2026-06-30.
+**Doc:** `recoExamples/nema/doc/nema_water.tex` (6 pp, built). **Supersedes** the old
 `nema_water_methods_wip.md` (deleted).
+
+## Scatter correction (the bottleneck) — RESOLVED, it was a listmode normalization bug
+The +24 CRC-point gap to gold was the scatter correction, and the defect was **scale,
+not shape or physics**. In the listmode model `ȳ_i = mult·(Ax)_i + c_i`, the two terms
+must share units; our contamination was the scatter **fraction** `b_i=S̃/P̃` (~0.2)
+normalized to `Σ=N_scat` (the BINNED-sinogram convention), while the forward term is an
+**intensity** (~12.5). Ratio 0.016 vs expected 0.205 → scatter entered **~12× too small**
+(`scatter_scale_check.jl` proves it), so the correction was a near no-op AND indifferent
+to its structure (φ did nothing — Result 2's φ test was a red herring caused by this).
+- **Fix** (`compare_methods.jl` `[scatter] intensity_scale=true`): `c_i = b_i·(mult·fwd(x_uncorr))_i`
+  — fraction × per-LOR total-intensity proxy. STIR's binned `s_j`-on-`y_j`-scale, in listmode.
+  Recovery **1.6 → 12.0** of 25; 10 mm corr CRC **31% → 39%**; residual to gold 23.8 → 13.4.
+- **φ** (4-coord model, `use_phi`): a WASH on the mean once scale is fixed (helps large
+  spheres, hurts small at n_phi=12; sparse stats). Kept as infra, default OFF.
+- **Heuristic scale ladder** (`[scatter] scale`, `scatter_scale_plot.py`): the residual is
+  STILL uniform scale — a global ×1.5 closes it across ALL sphere sizes, reaching gold and
+  clinical CR (10 mm 47%) with BV 13% < clinical 16.4%; ×2.0 over-subtracts (BV 18%).
+  So the intensity proxy is systematically ~1.5× low — almost certainly because
+  `x_uncorr` (no scatter correction, few iters) under-estimates the emission intensity.
+  **NEXT (principled, parked): take the proxy from the CORRECTED activity (or iterate it,
+  STIR-style) to supply the ~1.5 without a tuned constant.** 1.5 is a truth-tuned
+  diagnostic, not a deliverable.
+- Code: `recoExamples/src/background.jl` (`lor_sinogram_coords4`, `background_estimate4`,
+  N-D circular `_smoothnd`); scripts `scatter_scale_check.jl`, `scatter_scale_plot.py`,
+  `gold_vs_clinical.py` (now prints the gold/uncorr/corr decomposition).
 
 ## Headline (do NOT rediscover this)
 On the full-physics water NEMA contrast phantom (`recoExamples/nema/nema_la_water_bgo/`):

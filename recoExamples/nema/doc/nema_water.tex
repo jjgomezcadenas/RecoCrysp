@@ -173,6 +173,73 @@ corrected data essentially unsubtracted in and around the spheres.
   \end{tabular}
 \end{table}
 
+\section{Result 3: the scatter correction was a listmode normalization defect}
+Result~2 located the gap in the scatter correction. The defect turned out to be one of
+\emph{scale}, not physics or shape, and is specific to listmode.
+
+\paragraph{Diagnosis.} The listmode Poisson model is
+$\bar y_i = m_i\,(Ax)_i + c_i$, summing the forward term and the contamination $c_i$, so
+the two must share units. Our contamination was the smoothed scatter \emph{fraction}
+$b_i = \tilde S/\tilde P$ (dimensionless, $\sim\!0.2$), normalized so that
+$\sum_i b_i = N_{\text{scat}}$ --- the convention for a \emph{binned} sinogram, where the
+bin value is a count on the same scale as the data. Evaluated per event it is wrong: the
+forward term $m_i (Ax)_i$ is an \emph{intensity} (Joseph line-integral scale, mean
+$\approx 12.5$ here), so the ratio $\langle c\rangle/\langle m\,Ax\rangle = 0.016$ against
+an expected scatter fraction of $0.205$. The scatter entered $\sim\!12\times$ too small
+and was effectively absent --- which is also why its azimuthal structure was irrelevant
+(Result~2's $\phi$ test: a negligible term has no usable shape).
+
+\paragraph{Fix.} Put the contamination on the forward-model intensity scale:
+\[
+  c_i = b_i \cdot \big(m_i\,(Ax_{\text{uncorr}})_i\big),
+\]
+the local scatter fraction times a per-LOR total-intensity proxy (the forward projection
+of an uncorrected reconstruction, which fits all prompts). This is the listmode analog of
+STIR's binned scatter sinogram $s_j$ living on the scale of the binned data $y_j$.
+Table~\ref{tab:scatfix} shows the effect (BSREM-RDP, $\beta=0.5$): the recovered contrast
+jumps from $1.6$ to $12.0$ of the $25$ lost points, halving the residual to gold. Adding
+the $\phi$ model on top is a wash on the mean (it helps the large spheres and hurts the
+small ones at $n_\phi=12$, from sparse statistics), confirming again that localization was
+never the bottleneck.
+
+\begin{table}[h]
+  \centering
+  \caption{Listmode scatter normalization (BSREM-RDP $\beta=0.5$, mean over six spheres).
+    The intensity scale recovers most of the loss; $\phi$ adds nothing on the mean.}
+  \label{tab:scatfix}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    contamination & recovered (corr$-$uncorr) & residual to gold (gold$-$corr) \\
+    \midrule
+    fraction, $\sum=N_{\text{scat}}$ (legacy) & $+1.6$  & $+23.8$ \\
+    intensity-scaled                          & $+12.0$ & $+13.4$ \\
+    intensity-scaled $+\ \phi$                & $+11.9$ & $+13.5$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{The residual is still scale, not shape.} A heuristic global multiplier on the
+scatter term (Fig.~\ref{fig:scatscale}) closes the remaining $\sim\!13$ points
+\emph{uniformly} across sphere size: at scale $\approx 1.5$ the corrected reconstruction
+reaches the gold ceiling and clinical contrast ($10$\,mm CRC $47\%$) with background
+variability $13\%$, still \emph{below} the clinical $16.4\%$; scale $2.0$ overshoots gold
+and inflates BV (over-subtraction). That the correction responds to a single uniform
+factor means the intensity proxy is systematically $\sim\!1.5\times$ low --- almost
+certainly because $x_{\text{uncorr}}$ (reconstructed without scatter correction, few
+iterations) under-estimates the true emission intensity. The principled remedy is to take
+the proxy from the corrected activity (or iterate it, as STIR does), not a tuned constant;
+the $1.5$ here is a diagnostic on truth-flag scatter for one phantom, not a deliverable.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{nema_la_water_bgo_scatter_scale.png}
+  \caption{Scatter-scale ladder after the intensity fix. Left: corrected CRC vs sphere
+    size for scale $1.0/1.2/1.5/2.0$, against gold (ceiling) and clinical. Right: mean
+    residual to gold and $10$\,mm background variability vs scale --- the residual reaches
+    zero near scale $1.5$ with BV still below clinical, while $2.0$ over-subtracts.}
+  \label{fig:scatscale}
+\end{figure}
+
 \section{Conclusion}
 The reconstruction question is closed. With perfect data our reconstruction is already
 clinical-grade (gold $=$ clinical to $\sim$1\%), and on the corrected data every
@@ -185,8 +252,13 @@ while OSL needs a denominator clamp and still breaks above $\beta\!\approx\!10$;
 therefore the right default for edge priors --- but the point is moot until the data are
 better corrected.
 
-The lever is the \textbf{scatter (multiple-scatter) correction}: it recovers $1.6$ of
-the $25$ contrast-recovery points scatter removes. Fixing it is worth $\sim$24 points and
-is the only route left to the clinical curve. Re-scanning reconstruction priors is not.
+The lever was the \textbf{scatter correction}, and the defect was a listmode
+\emph{normalization}: the additive scatter term was on the fraction scale, not the
+forward-model intensity scale, so it entered $\sim\!12\times$ too small and recovered only
+$1.6$ of $25$ contrast points. Scaling it as $c_i = b_i\,(m_i\,(Ax)_i)$ recovers $12$; a
+uniform $\sim\!1.5\times$ residual remains, traced to the uncorrected intensity proxy and
+closable by taking the proxy from the corrected activity. With that, the corrected
+reconstruction reaches the gold ceiling and clinical contrast. Azimuthal localization and
+re-scanning priors were both dead ends; the scale was the whole story.
 
 \end{document}
