@@ -96,3 +96,18 @@ end
     @test std(hub[bg]) < std(raw[bg])
     println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  huber $(round(std(hub[bg]);sigdigits=3))")
 end
+
+@testset "osl_mlem (Logcosh / RDP edge priors)" begin
+    bg = [ax[1][i]^2 + ax[2][j]^2 + ax[3][k]^2 > 24.0f0^2 && sens[i, j, k] > 0
+          for i in 1:n[1], j in 1:n[2], k in 1:n[3]]
+    raw = mlem(m, x0; niter = 30)
+    # (1) beta=0 == mlem for both priors (the clamp leaves denom = sens at beta=0)
+    @test maximum(abs.(osl_mlem(m, x0, LogcoshPrior(0.0f0, 3.0f0); niter = 40) .- mlem(m, x0; niter = 40))) <= 1.0f-4 * maximum(raw)
+    @test maximum(abs.(osl_mlem(m, x0, RelativeDifferencePrior(0.0f0, 2.0f0, 1.0f-2); niter = 40) .- mlem(m, x0; niter = 40))) <= 1.0f-4 * maximum(raw)
+    # (2) each reduces background variance vs unregularized at matched niter
+    lc  = osl_mlem(m, x0, LogcoshPrior(0.2f0, 3.0f0); niter = 30)
+    rdp = osl_mlem(m, x0, RelativeDifferencePrior(0.3f0, 2.0f0, 1.0f-2); niter = 30)
+    @test std(lc[bg])  < std(raw[bg])
+    @test std(rdp[bg]) < std(raw[bg])
+    println("  bg std  raw $(round(std(raw[bg]);sigdigits=3))  logcosh $(round(std(lc[bg]);sigdigits=3))  rdp $(round(std(rdp[bg]);sigdigits=3))")
+end

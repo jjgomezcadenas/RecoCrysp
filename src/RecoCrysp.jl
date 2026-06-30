@@ -60,6 +60,7 @@ export uniform_sphere, uniform_cylinder, derenzo, gaussian_blur
 export sensitivity_image, ListmodePoissonModel, predicted, neg_log_likelihood,
        em_update, mlem, osem, subset_models
 export penalized_mlem, osl_mlem, Prior, NoPrior,
-       QuadraticIntensityPrior, QuadraticSmoothnessPrior, HuberPrior
+       QuadraticIntensityPrior, QuadraticSmoothnessPrior, HuberPrior,
+       LogcoshPrior, RelativeDifferencePrior
 
 end # module
